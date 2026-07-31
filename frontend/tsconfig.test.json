@@ -1,0 +1,24 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "noEmit": false,
+    "outDir": ".node-test-build",
+    "rootDir": ".",
+    "allowImportingTsExtensions": false,
+    "rewriteRelativeImportExtensions": true,
+    "types": []
+  },
+  "include": [
+    "tests/**/*.ts",
+    "tests/**/*.d.ts",
+    "src/lib/attachments.ts",
+    "src/lib/ticket-admin.ts",
+    "src/lib/router-guards.ts",
+    "src/lib/admin-guard.ts",
+    "src/lib/api.ts",
+    "src/types/**/*.ts"
+  ],
+  "exclude": ["node_modules", "src/**/*.vue"]
+}

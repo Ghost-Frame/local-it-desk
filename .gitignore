@@ -1,0 +1,33 @@
+# Rust build output
+/target/
+
+# Frontend dependencies, generated tests, and production output
+/frontend/node_modules/
+/frontend/.node-test-build/
+/frontend/dist/
+
+# Local runtime configuration and data
+/.env
+/.env.*
+!/.env.example
+/data/
+/uploads/
+/branding/
+/backups/
+/certs/
+*.db
+*.db-shm
+*.db-wal
+*.pem
+*.key
+
+# Local tooling and editor state
+/.idea/
+/.vscode/
+*.swp
+*.swo
+*~
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db

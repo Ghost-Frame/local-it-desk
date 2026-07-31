@@ -1,0 +1,36 @@
+[package]
+name = "local-it-desk-server"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+publish = false
+description = "Self-hosted local-network IT help desk server"
+
+[[bin]]
+name = "local-it-desk"
+path = "src/main.rs"
+
+[dependencies]
+axum.workspace = true
+tokio.workspace = true
+tower.workspace = true
+tower-http.workspace = true
+rusqlite.workspace = true
+deadpool-sqlite.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+argon2.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+thiserror.workspace = true
+infer.workspace = true
+rand.workspace = true
+base64.workspace = true
+sha2.workspace = true
+
+[dev-dependencies]
+reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
+tokio = { version = "1", features = ["full"] }
+tempfile = "3"

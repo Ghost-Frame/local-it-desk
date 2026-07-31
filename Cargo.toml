@@ -1,0 +1,44 @@
+[workspace]
+resolver = "2"
+members = ["crates/server"]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.88"
+
+[workspace.dependencies]
+# Web framework.
+axum = { version = "0.8", features = ["macros", "multipart"] }
+tokio = { version = "1", features = ["full"] }
+tower = { version = "0.5", features = ["util"] }
+tower-http = { version = "0.6", features = ["trace", "fs"] }
+
+# Database.
+rusqlite = { version = "0.31", features = ["bundled", "uuid"] }
+deadpool-sqlite = "0.8"
+
+# Serialization.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Authentication and cryptography.
+argon2 = "0.5"
+sha2 = "0.10"
+
+# Domain types.
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Observability.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json", "fmt"] }
+
+# Errors.
+thiserror = "2"
+
+# File validation.
+infer = "0.16"
+
+# Random session tokens and encoding.
+rand = "0.9"
+base64 = "0.22"

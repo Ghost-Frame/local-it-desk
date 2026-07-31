@@ -1,0 +1,2 @@
+# The frontend package remains the workspace root for deterministic pnpm commands.
+packages: []
