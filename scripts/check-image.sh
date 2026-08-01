@@ -23,6 +23,21 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Returns success for a match, cleanly rejects no-match, and fails on scanner errors.
+grep_matches() {
+  local grep_status
+  if grep "$@"; then
+    return 0
+  else
+    grep_status="$?"
+  fi
+  if [[ "${grep_status}" -eq 1 ]]; then
+    return 1
+  fi
+  printf 'Image check failed: grep exited with status %s.\n' "${grep_status}" >&2
+  exit 1
+}
+
 "${container_engine}" image inspect "${image_ref}" >/dev/null
 image_user="$("${container_engine}" image inspect "${image_ref}" --format '{{.Config.User}}')"
 case "${image_user}" in
@@ -33,7 +48,7 @@ case "${image_user}" in
 esac
 
 image_history="$("${container_engine}" history --no-trunc "${image_ref}")"
-if rg --ignore-case 'password=|token=|authorization:|PRIVATE KEY|gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}' <<<"${image_history}"; then
+if grep_matches --ignore-case --extended-regexp -- 'password=|token=|authorization:|PRIVATE KEY|gh[pousr]_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}' <<<"${image_history}"; then
   printf 'Image check failed: credential-shaped layer command found.\n' >&2
   exit 1
 fi
@@ -41,7 +56,7 @@ fi
 container_id="$("${container_engine}" create "${image_ref}")"
 "${container_engine}" export --output "${scan_root}/rootfs.tar" "${container_id}"
 tar -tf "${scan_root}/rootfs.tar" >"${scan_root}/rootfs-files.txt"
-if rg --ignore-case '(^|/)(\.git|Cargo\.lock|Cargo\.toml|package\.json|pnpm-lock\.yaml)$|\.(rs|ts|vue)$|(^|/)workspace/' "${scan_root}/rootfs-files.txt"; then
+if grep_matches --ignore-case --extended-regexp -- '(^|/)(\.git|Cargo\.lock|Cargo\.toml|package\.json|pnpm-lock\.yaml)$|\.(rs|ts|vue)$|(^|/)workspace/' "${scan_root}/rootfs-files.txt"; then
   printf 'Image check failed: build source or lock metadata found in runtime filesystem.\n' >&2
   exit 1
 fi
@@ -50,11 +65,11 @@ mkdir "${scan_root}/rootfs"
 tar -xf "${scan_root}/rootfs.tar" -C "${scan_root}/rootfs"
 # Private content terms are assembled from fragments to avoid publishing the protected values.
 readonly extracted_private_pattern='Bay[- ]'"'Audio'"'[- ]'"'Video'"'|it-desk-'"'app'"'|synthe'"'os'"'|/home/'"'zan'"'|10\.50\.[0-9]{1,3}\.[0-9]{1,3}|172\.30\.[0-9]{1,3}\.[0-9]{1,3}|gir'"'box'"'\.org|Invader '"'Zim'"'|agent-'"'forge'"'|kleos-'"'cli'"''
-if rg --hidden --no-messages --ignore-case "${extracted_private_pattern}" "${scan_root}/rootfs"; then
+if grep_matches --recursive --ignore-case --extended-regexp --binary-files=without-match -- "${extracted_private_pattern}" "${scan_root}/rootfs"; then
   printf 'Image check failed: private content found in runtime filesystem.\n' >&2
   exit 1
 fi
-if rg --hidden --no-messages --ignore-case 'eg_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|glpat-[A-Za-z0-9_-]{20,}|BEGIN [A-Z ]*PRIVATE KEY' "${scan_root}/rootfs"; then
+if grep_matches --recursive --ignore-case --extended-regexp --binary-files=without-match -- 'eg_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|gh[pousr]_[A-Za-z0-9]{20,}|glpat-[A-Za-z0-9_-]{20,}|BEGIN [A-Z ]*PRIVATE KEY' "${scan_root}/rootfs"; then
   printf 'Image check failed: credential-shaped content found in runtime filesystem.\n' >&2
   exit 1
 fi

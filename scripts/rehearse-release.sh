@@ -166,7 +166,7 @@ if ! awk '{print $2 " " $3}' "${repo_root}/release/allowed_signers" \
   fail 'configured release signing key is not pinned in allowed_signers'
 fi
 
-for required_command in git ssh-keygen jq sha256sum tar gzip cargo pnpm rg "${container_engine}"; do
+for required_command in git ssh-keygen jq sha256sum tar gzip cargo pnpm "${container_engine}"; do
   command -v "${required_command}" >/dev/null \
     || fail "required command is unavailable: ${required_command}"
 done

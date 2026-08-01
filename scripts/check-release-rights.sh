@@ -59,7 +59,7 @@ for tracked_path in "${release_paths[@]}"; do
 
   mime_type="$(file --brief --mime-type "${tracked_path}")"
   case "${mime_type}" in
-    text/*|application/json|application/toml|application/x-empty)
+    text/*|application/javascript|application/x-javascript|application/json|application/toml|application/x-empty)
       ;;
     *)
       printf 'Release rights check failed: unreviewed non-text asset %s (%s, %s).\n' "${tracked_path}" "${mime_type}" "${classification}" >&2

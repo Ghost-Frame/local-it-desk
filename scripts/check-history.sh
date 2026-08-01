@@ -26,7 +26,25 @@ done < <(git log --all --name-only --pretty=format: | sort -u)
 
 # Private metadata terms are assembled from fragments to avoid publishing the protected values.
 readonly private_metadata_pattern='gir'"'box'"'\.org|/home/'"'zan'"'|10\.50\.[0-9]{1,3}\.[0-9]{1,3}|172\.30\.[0-9]{1,3}\.[0-9]{1,3}|157\.180\.[0-9]{1,3}\.[0-9]{1,3}|hetzner-'"'dedi'"'|hetzner-'"'zan'"'|cachyOS-'"'msi'"'|Invader '"'Zim'"'|agent-'"'forge'"'|kleos-'"'cli'"''
-if git log --all --format='%H %an <%ae> %cn <%ce> %B' | rg --ignore-case "${private_metadata_pattern}"; then
+
+# Returns success for a match, cleanly rejects no-match, and fails on scanner errors.
+grep_private_metadata() {
+  local grep_status
+  if grep --ignore-case --extended-regexp -- "${private_metadata_pattern}"; then
+    return 0
+  else
+    grep_status="$?"
+  fi
+  if [[ "${grep_status}" -eq 1 ]]; then
+    return 1
+  fi
+  printf 'History check failed: grep exited with status %s.\n' "${grep_status}" >&2
+  exit 1
+}
+
+commit_metadata="$(git log --all --format='%H %an <%ae> %cn <%ce> %B')"
+readonly commit_metadata
+if grep_private_metadata <<<"${commit_metadata}"; then
   printf 'History check failed: private commit metadata or message found.\n' >&2
   exit 1
 fi
