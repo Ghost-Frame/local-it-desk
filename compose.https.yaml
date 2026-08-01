@@ -1,0 +1,57 @@
+services:
+  app:
+    environment:
+      APP_ORIGIN: "${HTTPS_ORIGIN:-https://helpdesk.local}"
+      COOKIE_SECURE: "true"
+    ports: !reset []
+
+  caddy:
+    image: "${CADDY_IMAGE:-caddy:2.10.0-alpine}"
+    pull_policy: missing
+    user: "10001:10001"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      app:
+        condition: service_healthy
+        restart: true
+    environment:
+      XDG_CONFIG_HOME: /config
+      XDG_DATA_HOME: /data
+    ports:
+      - name: school-https
+        target: 8443
+        published: "${HTTPS_PORT:-443}"
+        host_ip: "${HTTPS_BIND_ADDRESS:-0.0.0.0}"
+        protocol: tcp
+    volumes:
+      - type: bind
+        source: ./deploy/Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+      - type: bind
+        source: ./certs
+        target: /certs
+        read_only: true
+    tmpfs:
+      - /config:rw,noexec,nosuid,nodev,size=16777216,mode=0750,uid=10001,gid=10001
+      - /data:rw,noexec,nosuid,nodev,size=16777216,mode=0750,uid=10001,gid=10001
+      - /tmp:rw,noexec,nosuid,nodev,size=16777216,mode=1777
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--spider", "http://127.0.0.1:8080/health/ready"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+    logging:
+      driver: local
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - desk-internal
