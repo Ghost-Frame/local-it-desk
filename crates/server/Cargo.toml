@@ -38,8 +38,11 @@ clap.workspace = true
 rpassword.workspace = true
 sha2.workspace = true
 subtle.workspace = true
+flate2.workspace = true
+tar.workspace = true
+tempfile.workspace = true
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }
 tokio = { version = "1", features = ["full"] }
-tempfile = "3"
+tempfile.workspace = true

@@ -6,6 +6,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, Subcommand};
 use local_it_desk_server::admin_cli::{RecoveryError, reset_password};
+use local_it_desk_server::backup::{BackupError, create_backup, verify_backup};
 
 /// Maximum redirected input accepted for two bounded password values.
 const MAX_INPUT_BYTES: u64 = 2_048;
@@ -14,8 +15,8 @@ const MAX_INPUT_BYTES: u64 = 2_048;
 #[derive(Parser)]
 #[command(
     name = "local-it-desk-admin",
-    about = "Offline maintenance for a Local IT Desk database",
-    after_help = "Replacement passwords are read from a hidden terminal or standard input. They are never accepted as command-line arguments. Stop the server before running recovery."
+    about = "Local IT Desk backup and offline maintenance",
+    after_help = "Backups use SQLite online snapshot semantics. Replacement passwords are read from a hidden terminal or standard input and are never accepted as command-line arguments. Stop the server before password recovery."
 )]
 struct Cli {
     /// Selected offline maintenance operation.
@@ -26,6 +27,21 @@ struct Cli {
 /// Supported offline maintenance operations.
 #[derive(Subcommand)]
 enum Command {
+    /// Create a consistent, self-verifying backup archive without stopping the server.
+    Backup {
+        /// Existing SQLite database file to snapshot.
+        #[arg(long, value_name = "PATH")]
+        database: PathBuf,
+        /// Persistent attachment directory containing database-owned files.
+        #[arg(long, value_name = "PATH")]
+        attachments: PathBuf,
+        /// Persistent branding directory containing the active logo.
+        #[arg(long, value_name = "PATH")]
+        branding: PathBuf,
+        /// New archive path that must not already exist.
+        #[arg(long, value_name = "FILE")]
+        output: PathBuf,
+    },
     /// Replace one administrator password and revoke every active session.
     ResetPassword {
         /// Existing SQLite database file to update.
@@ -35,11 +51,31 @@ enum Command {
         #[arg(long, value_name = "USERNAME")]
         username: String,
     },
+    /// Stream and verify every entry in one backup archive without extracting it.
+    VerifyBackup {
+        /// Existing backup archive to verify.
+        #[arg(long, value_name = "FILE")]
+        archive: PathBuf,
+    },
 }
 
-/// Reads protected input, runs recovery, and maps failures to documented codes.
+/// Dispatches one selected maintenance operation and returns a classified failure.
 fn run(cli: Cli) -> Result<(), CliFailure> {
     match cli.command {
+        Command::Backup {
+            database,
+            attachments,
+            branding,
+            output,
+        } => {
+            let summary = create_backup(&database, &attachments, &branding, &output)
+                .map_err(CliFailure::from)?;
+            println!(
+                "Backup created: {} payload file(s), {} byte(s), schema version {}.",
+                summary.file_count, summary.payload_bytes, summary.schema_version
+            );
+            Ok(())
+        }
         Command::ResetPassword { database, username } => {
             let password = read_password_pair()?;
             let result =
@@ -47,6 +83,14 @@ fn run(cli: Cli) -> Result<(), CliFailure> {
             println!(
                 "Administrator '{}' recovered; {} active session(s) revoked. A password change is required at next login.",
                 result.username, result.revoked_sessions
+            );
+            Ok(())
+        }
+        Command::VerifyBackup { archive } => {
+            let summary = verify_backup(&archive).map_err(CliFailure::from)?;
+            println!(
+                "Backup verified: {} payload file(s), {} byte(s), schema version {}.",
+                summary.file_count, summary.payload_bytes, summary.schema_version
             );
             Ok(())
         }
@@ -102,6 +146,8 @@ enum CliFailure {
     Target(String),
     /// Recovery failed after the target was safely resolved.
     Operation(String),
+    /// Backup creation or archive verification failed safely.
+    Backup(String),
 }
 
 /// Maps recovery-domain failures into stable command failure classes.
@@ -124,6 +170,14 @@ impl From<RecoveryError> for CliFailure {
     }
 }
 
+/// Maps backup-domain failures into one stable maintenance exit class.
+impl From<BackupError> for CliFailure {
+    /// Redacts internal error categories behind an actionable local message.
+    fn from(error: BackupError) -> Self {
+        Self::Backup(error.to_string())
+    }
+}
+
 /// Executes the parsed command and exits without printing credential material.
 fn main() -> ExitCode {
     match run(Cli::parse()) {
@@ -143,6 +197,10 @@ fn main() -> ExitCode {
         Err(CliFailure::Operation(message)) => {
             eprintln!("Recovery error: {message}");
             ExitCode::from(6)
+        }
+        Err(CliFailure::Backup(message)) => {
+            eprintln!("Backup error: {message}");
+            ExitCode::from(7)
         }
     }
 }

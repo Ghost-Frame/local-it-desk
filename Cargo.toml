@@ -14,7 +14,7 @@ tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.6", features = ["trace", "fs"] }
 
 # Database.
-rusqlite = { version = "0.31", features = ["bundled", "uuid"] }
+rusqlite = { version = "0.31", features = ["backup", "bundled", "uuid"] }
 deadpool-sqlite = "0.8"
 
 # Serialization.
@@ -47,3 +47,8 @@ rand = "0.9"
 base64 = "0.22"
 clap = { version = "4", features = ["derive"] }
 rpassword = "7"
+
+# Verified backup archives.
+flate2 = "1"
+tar = "0.4"
+tempfile = "3"

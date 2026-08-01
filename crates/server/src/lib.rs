@@ -4,6 +4,8 @@
 pub mod admin_cli;
 /// Local account roles and authentication foundation.
 pub mod auth;
+/// Self-verifying backup archive creation and validation.
+pub mod backup;
 /// Validated environment-backed runtime configuration.
 pub mod config;
 /// SQLite pool and clean-schema migration support.
