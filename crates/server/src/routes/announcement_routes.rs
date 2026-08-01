@@ -15,6 +15,7 @@ use crate::db;
 use crate::error::{AppError, AppResult};
 use crate::models::announcement::{self, Announcement};
 use crate::models::audit::{self, NewAuditEntry};
+use crate::models::notification;
 
 /// New administrator-authored announcement input.
 #[derive(Debug, Deserialize)]
@@ -210,6 +211,7 @@ async fn publish_announcement(
         )?;
         let published = announcement::find(&transaction, id)?
             .ok_or_else(|| AppError::Internal("published announcement was missing".to_string()))?;
+        notification::announcement_published(&transaction, id, identity.user_id, &now)?;
         transaction.commit()?;
         Ok(published)
     })

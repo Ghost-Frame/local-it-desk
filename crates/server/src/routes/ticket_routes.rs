@@ -19,6 +19,7 @@ use crate::auth::middleware::AuthenticatedUser;
 use crate::db;
 use crate::error::{AppError, AppResult};
 use crate::models::audit::{self, NewAuditEntry};
+use crate::models::notification;
 use crate::models::ticket::{
     CommentVisibility, Ticket, TicketComment, TicketPolicy, TicketPriority, TicketStatus,
 };
@@ -213,6 +214,7 @@ async fn create_ticket(
             &now,
         )?;
         let ticket = find_ticket(&transaction, id)?.ok_or(AppError::NotFound)?;
+        notification::ticket_created(&transaction, &ticket, identity.user_id, &now)?;
         transaction.commit()?;
         Ok(ticket)
     })
@@ -332,6 +334,13 @@ async fn update_ticket(
         };
         record_ticket_audit(&transaction, identity.user_id, action, id, &summary, &now)?;
         let updated = find_ticket(&transaction, id)?.ok_or(AppError::NotFound)?;
+        notification::ticket_status_changed(
+            &transaction,
+            &current,
+            &updated,
+            identity.user_id,
+            &now,
+        )?;
         transaction.commit()?;
         Ok(updated)
     })
@@ -420,6 +429,9 @@ async fn create_comment(
             &now,
         )?;
         let comment = find_comment(&transaction, comment_id)?.ok_or(AppError::NotFound)?;
+        if request.visibility == CommentVisibility::Public {
+            notification::public_ticket_comment(&transaction, &ticket, identity.user_id, &now)?;
+        }
         transaction.commit()?;
         Ok(comment)
     })

@@ -6,6 +6,8 @@ pub mod announcement;
 pub mod attachment;
 /// Administrative audit record contracts.
 pub mod audit;
+/// Private in-app notification records and event recipient rules.
+pub mod notification;
 /// Bounded staff roster CSV validation contracts.
 pub mod roster;
 /// Typed runtime settings and category persistence contracts.

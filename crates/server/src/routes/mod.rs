@@ -25,6 +25,8 @@ pub mod announcement_routes;
 pub mod attachment_routes;
 /// Local account foundation routes.
 pub mod auth_routes;
+/// Private current-account notification routes.
+pub mod notification_routes;
 /// Runtime settings, categories, and branding routes.
 pub mod settings_routes;
 /// Support ticket foundation routes.
@@ -142,6 +144,7 @@ pub fn build_router(config: Config, pool: Pool) -> Router {
         .route("/health/ready", get(readiness))
         .merge(auth_routes::router())
         .merge(announcement_routes::router())
+        .merge(notification_routes::router())
         .merge(settings_routes::router(state.config.max_upload_bytes))
         .merge(ticket_routes::router())
         .merge(attachment_routes::router(state.config.max_upload_bytes))
