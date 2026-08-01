@@ -1,0 +1,32 @@
+# Version-control and local editor state.
+.git
+.github
+.idea
+.vscode
+
+# Host build output and dependency caches.
+target
+frontend/node_modules
+frontend/dist
+frontend/.node-test-build
+
+# Runtime data, credentials, certificates, and local configuration.
+.env
+.env.*
+data
+uploads
+branding
+backups
+certs
+*.db
+*.db-shm
+*.db-wal
+*.pem
+*.key
+
+# Developer-only planning and operating-system metadata.
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db

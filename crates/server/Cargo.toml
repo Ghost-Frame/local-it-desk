@@ -10,6 +10,10 @@ description = "Self-hosted local-network IT help desk server"
 name = "local-it-desk"
 path = "src/main.rs"
 
+[[bin]]
+name = "local-it-desk-healthcheck"
+path = "src/bin/local-it-desk-healthcheck.rs"
+
 [dependencies]
 axum.workspace = true
 tokio.workspace = true
