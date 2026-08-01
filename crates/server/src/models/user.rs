@@ -60,6 +60,27 @@ pub struct NewUser<'a> {
     pub must_change_password: bool,
 }
 
+/// Fully validated owned account data with a one-way password hash.
+#[derive(Debug, Clone)]
+pub struct PreparedUser {
+    /// Stable identifier selected before insertion.
+    id: Uuid,
+    /// Normalized case-insensitive login name.
+    username: String,
+    /// Validated human-facing staff name.
+    display_name: String,
+    /// Normalized optional contact metadata.
+    email: Option<String>,
+    /// Argon2id PHC string derived before opening a write transaction.
+    password_hash: String,
+    /// Initial cumulative authorization role.
+    role: Role,
+    /// Whether product access requires immediate password replacement.
+    must_change_password: bool,
+    /// Shared creation and update timestamp.
+    created_at: String,
+}
+
 /// Internal credential row used only during uniform authentication.
 #[derive(Debug)]
 struct CredentialUser {
@@ -71,30 +92,44 @@ struct CredentialUser {
 
 /// Creates one validated local account and returns only its public fields.
 pub fn create(connection: &Connection, input: &NewUser<'_>) -> AppResult<User> {
-    let id = Uuid::new_v4();
-    let username = normalize_username(input.username)?;
-    let display_name = validate_display_name(input.display_name)?;
-    let email = normalize_email(input.email)?;
-    let password_hash = hash_password(input.password)?;
-    let now = timestamp();
+    let prepared = prepare(input)?;
+    insert(connection, &prepared)
+}
+
+/// Validates and hashes account input before a caller opens a write transaction.
+pub fn prepare(input: &NewUser<'_>) -> AppResult<PreparedUser> {
+    Ok(PreparedUser {
+        id: Uuid::new_v4(),
+        username: normalize_username(input.username)?,
+        display_name: validate_display_name(input.display_name)?,
+        email: normalize_email(input.email)?,
+        password_hash: hash_password(input.password)?,
+        role: input.role,
+        must_change_password: input.must_change_password,
+        created_at: timestamp(),
+    })
+}
+
+/// Inserts one prepared account into the caller's connection or transaction.
+pub fn insert(connection: &Connection, prepared: &PreparedUser) -> AppResult<User> {
     let result = connection.execute(
         "INSERT INTO users (
              id, username, display_name, email, password_hash, role,
              is_active, must_change_password, created_at, updated_at
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, 1, ?7, ?8, ?8)",
         params![
-            id.to_string(),
-            username,
-            display_name,
-            email,
-            password_hash,
-            input.role.as_str(),
-            input.must_change_password,
-            now,
+            prepared.id.to_string(),
+            prepared.username,
+            prepared.display_name,
+            prepared.email,
+            prepared.password_hash,
+            prepared.role.as_str(),
+            prepared.must_change_password,
+            prepared.created_at,
         ],
     );
     match result {
-        Ok(_) => find_by_id(connection, id)?.ok_or_else(|| {
+        Ok(_) => find_by_id(connection, prepared.id)?.ok_or_else(|| {
             AppError::Internal("created account could not be reloaded".to_string())
         }),
         Err(error) if error.sqlite_error_code() == Some(ErrorCode::ConstraintViolation) => Err(

@@ -17,7 +17,7 @@ pub const SESSION_COOKIE_NAME: &str = "local_it_desk_session";
 pub const CSRF_HEADER_NAME: &str = "x-csrf-token";
 
 /// Session identity that may still be restricted to password replacement routes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq)]
 pub struct SessionUser {
     /// Stable server-side session identifier.
     pub session_id: Uuid,
@@ -27,6 +27,8 @@ pub struct SessionUser {
     pub role: Role,
     /// Whether product access is blocked pending password replacement.
     pub must_change_password: bool,
+    /// Stable derived CSRF secret returned only by the session bootstrap route.
+    pub(crate) csrf_token: String,
 }
 
 /// Extracts a valid session and enforces CSRF on unsafe HTTP methods.
@@ -40,6 +42,7 @@ impl FromRequestParts<AppState> for SessionUser {
         state: &AppState,
     ) -> Result<Self, Self::Rejection> {
         let token = session_cookie_value(&parts.headers).ok_or(AppError::Unauthorized)?;
+        let csrf_token = session::csrf_for_session_token(&token);
         let resolved = db::interact(&state.pool, move |connection| {
             session::resolve(connection, &token)
         })
@@ -62,6 +65,7 @@ impl FromRequestParts<AppState> for SessionUser {
             user_id: resolved.user_id,
             role: resolved.role,
             must_change_password: resolved.must_change_password,
+            csrf_token,
         })
     }
 }

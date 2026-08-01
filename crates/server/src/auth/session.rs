@@ -68,7 +68,7 @@ impl ResolvedSession {
 pub fn create(connection: &Connection, user_id: Uuid, ttl_days: u64) -> AppResult<IssuedSession> {
     let id = Uuid::new_v4();
     let token = generate_secret();
-    let csrf_token = generate_secret();
+    let csrf_token = csrf_for_session_token(&token);
     let created_at = Utc::now();
     let ttl_days = i64::try_from(ttl_days)
         .map_err(|_| AppError::Internal("session lifetime exceeds supported range".to_string()))?;
@@ -123,19 +123,6 @@ pub fn resolve(connection: &Connection, token: &str) -> AppResult<Option<Resolve
         session.resolved.last_seen_at = now;
     }
     Ok(Some(session.resolved))
-}
-
-/// Replaces one session's CSRF secret and returns the new raw value once.
-pub fn rotate_csrf(connection: &Connection, session_id: Uuid) -> AppResult<String> {
-    let csrf_token = generate_secret();
-    let updated = connection.execute(
-        "UPDATE sessions SET csrf_hash = ?1 WHERE id = ?2 AND revoked_at IS NULL",
-        params![hash_secret(&csrf_token), session_id.to_string()],
-    )?;
-    if updated != 1 {
-        return Err(AppError::Unauthorized);
-    }
-    Ok(csrf_token)
 }
 
 /// Atomically revokes one session and replaces it with newly issued secrets.
@@ -204,6 +191,14 @@ pub fn clear_session_cookie(secure: bool) -> String {
 /// Returns the stable lowercase SHA-256 representation stored for a secret.
 pub fn hash_secret(secret: &str) -> String {
     format!("{:x}", Sha256::digest(secret.as_bytes()))
+}
+
+/// Derives the stable per-session CSRF secret from the unreadable cookie token.
+pub fn csrf_for_session_token(session_token: &str) -> String {
+    let mut digest = Sha256::new();
+    digest.update(b"local-it-desk-csrf-v1\0");
+    digest.update(session_token.as_bytes());
+    format!("{:x}", digest.finalize())
 }
 
 /// Compares a submitted CSRF token with one stored hash in constant time.

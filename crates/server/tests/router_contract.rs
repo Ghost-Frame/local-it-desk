@@ -75,7 +75,6 @@ async fn public_foundation_routes_match_contract() {
 async fn retained_api_families_are_mounted() {
     let (app, _temp) = test_router().await;
     for (method, path) in [
-        ("POST", "/api/auth/login"),
         ("GET", "/api/tickets"),
         ("POST", "/api/attachments"),
         ("GET", "/api/users"),

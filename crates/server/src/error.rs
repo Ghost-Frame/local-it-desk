@@ -22,6 +22,9 @@ pub enum AppError {
     /// The authenticated identity lacks permission for the operation.
     #[error("forbidden")]
     Forbidden,
+    /// A public authentication endpoint has exceeded its bounded retry policy.
+    #[error("too many requests")]
+    TooManyRequests,
     /// The retained API boundary exists but its implementation belongs to a later plan.
     #[error("not implemented")]
     NotImplemented,
@@ -68,6 +71,7 @@ impl IntoResponse for AppError {
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
+            Self::TooManyRequests => StatusCode::TOO_MANY_REQUESTS,
             Self::NotImplemented => StatusCode::NOT_IMPLEMENTED,
             Self::PayloadTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             Self::UnsupportedMediaType(_) => StatusCode::UNSUPPORTED_MEDIA_TYPE,

@@ -11,6 +11,7 @@ use local_it_desk_server::auth::Role;
 use local_it_desk_server::auth::middleware::{
     AuthenticatedUser, RequireAdministrator, SESSION_COOKIE_NAME,
 };
+use local_it_desk_server::auth::rate_limit::LoginRateLimiter;
 use local_it_desk_server::auth::session;
 use local_it_desk_server::config::Config;
 use local_it_desk_server::db;
@@ -77,6 +78,10 @@ fn session_and_csrf_tokens_are_hashed_at_rest() {
 
     assert_ne!(issued.token, token_hash);
     assert_ne!(issued.csrf_token, csrf_hash);
+    assert_eq!(
+        issued.csrf_token,
+        session::csrf_for_session_token(&issued.token)
+    );
     assert_eq!(session::hash_secret(&issued.token), token_hash);
     assert!(session::verify_csrf(&issued.csrf_token, &csrf_hash));
     assert!(!session::verify_csrf("wrong-csrf-token", &csrf_hash));
@@ -181,6 +186,7 @@ async fn protected_router(
     let state = AppState {
         config: Arc::new(config),
         pool,
+        login_limiter: LoginRateLimiter::default(),
     };
     let router = Router::new()
         .route("/product", get(product_handler).post(product_handler))

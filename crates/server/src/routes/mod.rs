@@ -12,6 +12,7 @@ use tower_http::services::{ServeDir, ServeFile};
 use crate::config::Config;
 use crate::db;
 use crate::error::{AppError, AppResult};
+use crate::auth::rate_limit::LoginRateLimiter;
 
 /// Administrator foundation routes.
 pub mod admin_routes;
@@ -31,6 +32,8 @@ pub struct AppState {
     pub config: Arc<Config>,
     /// SQLite connection pool.
     pub pool: Pool,
+    /// Shared direct-peer throttle for public credential endpoints.
+    pub login_limiter: LoginRateLimiter,
 }
 
 /// Small JSON status body returned by health endpoints.
@@ -56,6 +59,7 @@ pub fn build_router(config: Config, pool: Pool) -> Router {
     let state = AppState {
         config: Arc::new(config),
         pool,
+        login_limiter: LoginRateLimiter::default(),
     };
 
     let mut router = Router::new()

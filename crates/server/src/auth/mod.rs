@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 pub mod middleware;
 /// Password hashing and account-field validation helpers.
 pub mod password;
+/// In-memory direct-peer login and setup throttling.
+pub mod rate_limit;
 /// Opaque session token primitives reserved for Plan 02 persistence.
 pub mod session;
 
