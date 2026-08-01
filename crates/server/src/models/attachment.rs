@@ -1,4 +1,6 @@
-//! Attachment metadata and approved parent boundaries.
+//! Attachment metadata, approved parent boundaries, and storage vocabulary.
+
+use std::str::FromStr;
 
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
@@ -15,6 +17,36 @@ pub enum AttachmentParentKind {
     InternalNote,
     /// File attached to an administrator-authored announcement.
     Announcement,
+}
+
+/// String conversion for persisted attachment parent kinds.
+impl AttachmentParentKind {
+    /// Returns the stable database and multipart spelling for this parent kind.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Ticket => "ticket",
+            Self::PublicComment => "public_comment",
+            Self::InternalNote => "internal_note",
+            Self::Announcement => "announcement",
+        }
+    }
+}
+
+/// Strictly parses an attachment parent kind without inherited aliases.
+impl FromStr for AttachmentParentKind {
+    /// Static parse failure returned for unsupported parent kinds.
+    type Err = &'static str;
+
+    /// Converts one exact database or API spelling into its parent kind.
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "ticket" => Ok(Self::Ticket),
+            "public_comment" => Ok(Self::PublicComment),
+            "internal_note" => Ok(Self::InternalNote),
+            "announcement" => Ok(Self::Announcement),
+            _ => Err("unsupported attachment parent kind"),
+        }
+    }
 }
 
 /// Typed parent reference that prevents attachment scope confusion.
@@ -63,16 +95,19 @@ pub struct Attachment {
     /// Approved parent identifier.
     pub parent_id: Uuid,
     /// Account that uploaded the file.
+    #[serde(skip_serializing)]
     pub uploader_id: Uuid,
     /// Original human-facing filename.
     pub original_name: String,
     /// Randomized filename stored outside the web root.
+    #[serde(skip_serializing)]
     pub stored_name: String,
     /// Media type detected by the server.
     pub media_type: String,
     /// Exact uploaded size in bytes.
     pub size_bytes: u64,
     /// Hex-encoded SHA-256 checksum.
+    #[serde(skip_serializing)]
     pub sha256: String,
     /// UTC creation timestamp.
     pub created_at: String,

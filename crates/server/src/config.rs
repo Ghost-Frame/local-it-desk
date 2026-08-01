@@ -20,6 +20,8 @@ pub struct Config {
     pub branding_dir: PathBuf,
     /// Maximum accepted attachment size.
     pub max_upload_bytes: u64,
+    /// Maximum aggregate attachment bytes retained by one ticket.
+    pub max_ticket_upload_bytes: u64,
     /// Maximum accepted raw staff roster CSV size.
     pub max_roster_bytes: u64,
     /// Maximum number of non-empty staff rows in one roster.
@@ -56,6 +58,19 @@ impl Config {
             panic!("COOKIE_SECURE must be true when APP_ORIGIN uses HTTPS");
         }
 
+        let max_upload_bytes =
+            parse_bounded_u64("MAX_UPLOAD_BYTES", "26214400", 1, 1024 * 1024 * 1024);
+        let max_ticket_upload_bytes = parse_bounded_u64(
+            "MAX_TICKET_UPLOAD_BYTES",
+            "104857600",
+            1,
+            10 * 1024 * 1024 * 1024,
+        );
+        assert!(
+            max_ticket_upload_bytes >= max_upload_bytes,
+            "MAX_TICKET_UPLOAD_BYTES must be at least MAX_UPLOAD_BYTES"
+        );
+
         Self {
             listen_addr: env_or("LISTEN_ADDR", "0.0.0.0:3000")
                 .parse()
@@ -64,12 +79,8 @@ impl Config {
             database_path: PathBuf::from(env_or("DATABASE_PATH", "data/local-it-desk.db")),
             upload_dir: PathBuf::from(env_or("UPLOAD_DIR", "uploads")),
             branding_dir: PathBuf::from(env_or("BRANDING_DIR", "branding")),
-            max_upload_bytes: parse_bounded_u64(
-                "MAX_UPLOAD_BYTES",
-                "26214400",
-                1,
-                1024 * 1024 * 1024,
-            ),
+            max_upload_bytes,
+            max_ticket_upload_bytes,
             max_roster_bytes: parse_bounded_u64(
                 "MAX_ROSTER_BYTES",
                 "1048576",
@@ -99,6 +110,7 @@ impl Config {
             upload_dir,
             branding_dir: runtime_root.join("branding"),
             max_upload_bytes: 25 * 1024 * 1024,
+            max_ticket_upload_bytes: 250 * 1024 * 1024,
             max_roster_bytes: 1024 * 1024,
             max_roster_rows: 500,
             app_name: "Local IT Desk".to_string(),

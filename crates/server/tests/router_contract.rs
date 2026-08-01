@@ -70,7 +70,7 @@ async fn public_foundation_routes_match_contract() {
     assert!(config_body.get("cookie_secure").is_none());
 }
 
-/// Confirms retained API families are mounted as explicit foundation placeholders.
+/// Confirms retained API families are mounted behind authentication.
 #[tokio::test]
 async fn retained_api_families_are_mounted() {
     let (app, _temp) = test_router().await;
@@ -78,8 +78,8 @@ async fn retained_api_families_are_mounted() {
         let (status, _body) = request_json(&app, method, path).await;
         assert_eq!(
             status,
-            StatusCode::NOT_IMPLEMENTED,
-            "retained route {method} {path} must be mounted"
+            StatusCode::UNAUTHORIZED,
+            "retained route {method} {path} must require authentication"
         );
     }
 }

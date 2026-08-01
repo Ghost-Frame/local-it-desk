@@ -68,7 +68,7 @@ pub fn build_router(config: Config, pool: Pool) -> Router {
         .route("/api/config", get(public_config))
         .merge(auth_routes::router())
         .merge(ticket_routes::router())
-        .merge(attachment_routes::router())
+        .merge(attachment_routes::router(state.config.max_upload_bytes))
         .merge(user_routes::router(state.config.max_roster_bytes))
         .merge(admin_routes::router())
         .route("/api/{*path}", any(not_found))
@@ -114,11 +114,6 @@ async fn public_config(State(state): State<AppState>) -> AppResult<Json<PublicCo
         support_contact: state.config.support_contact.clone(),
         setup_required,
     }))
-}
-
-/// Returns the explicit foundation response for work completed in later plans.
-pub(crate) async fn not_implemented() -> AppError {
-    AppError::NotImplemented
 }
 
 /// Prevents unknown backend paths from falling through to the browser shell.
