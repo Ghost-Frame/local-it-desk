@@ -87,9 +87,17 @@ bash scripts/compose-contract.sh
 bash scripts/check-runbook.sh
 bash scripts/smoke-compose.sh
 bash scripts/check-dependencies.sh
+bash scripts/check-release-rights.sh
 bash scripts/check-forbidden-surfaces.sh
 bash scripts/check-private-terms.sh
 ~~~
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md) before changing the product boundary.
 Report security issues through the process in [SECURITY.md](SECURITY.md).
+
+## License and provenance
+
+Local IT Desk is licensed under the [Apache License 2.0](LICENSE). Source and
+asset classifications are documented in [Provenance](docs/PROVENANCE.md), and
+dependency license families are listed in
+[Third-Party Notices](THIRD-PARTY-NOTICES.md).
