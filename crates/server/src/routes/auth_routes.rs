@@ -126,6 +126,7 @@ async fn setup(
         for (key, value) in [
             ("default_priority", "normal".to_string()),
             ("app_name", config.app_name.clone()),
+            ("default_category_id", category_id.to_string()),
         ] {
             transaction.execute(
                 "INSERT INTO settings (key, value, updated_by, updated_at)

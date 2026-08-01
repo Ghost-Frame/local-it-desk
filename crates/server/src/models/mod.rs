@@ -6,6 +6,8 @@ pub mod attachment;
 pub mod audit;
 /// Bounded staff roster CSV validation contracts.
 pub mod roster;
+/// Typed runtime settings and category persistence contracts.
+pub mod settings;
 /// Ticket workflow, comment visibility, and access policies.
 pub mod ticket;
 /// Local account record contracts.

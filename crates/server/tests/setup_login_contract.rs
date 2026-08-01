@@ -181,7 +181,7 @@ async fn first_run_setup_provisions_defaults_and_session() {
     })
     .await
     .expect("setup counts");
-    assert_eq!(counts, (1, 1, 1, 2, 1));
+    assert_eq!(counts, (1, 1, 1, 3, 1));
 
     let after = send(
         &app,
