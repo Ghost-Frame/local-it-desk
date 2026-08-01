@@ -20,6 +20,10 @@ pub struct Config {
     pub branding_dir: PathBuf,
     /// Maximum accepted attachment size.
     pub max_upload_bytes: u64,
+    /// Maximum accepted raw staff roster CSV size.
+    pub max_roster_bytes: u64,
+    /// Maximum number of non-empty staff rows in one roster.
+    pub max_roster_rows: u64,
     /// Name displayed in the browser.
     pub app_name: String,
     /// Optional operator-provided help contact.
@@ -66,6 +70,13 @@ impl Config {
                 1,
                 1024 * 1024 * 1024,
             ),
+            max_roster_bytes: parse_bounded_u64(
+                "MAX_ROSTER_BYTES",
+                "1048576",
+                1024,
+                10 * 1024 * 1024,
+            ),
+            max_roster_rows: parse_bounded_u64("MAX_ROSTER_ROWS", "500", 1, 10_000),
             app_name,
             support_contact: env_optional("SUPPORT_CONTACT"),
             cookie_secure,
@@ -88,6 +99,8 @@ impl Config {
             upload_dir,
             branding_dir: runtime_root.join("branding"),
             max_upload_bytes: 25 * 1024 * 1024,
+            max_roster_bytes: 1024 * 1024,
+            max_roster_rows: 500,
             app_name: "Local IT Desk".to_string(),
             support_contact: None,
             cookie_secure: false,

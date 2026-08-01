@@ -69,7 +69,7 @@ pub fn build_router(config: Config, pool: Pool) -> Router {
         .merge(auth_routes::router())
         .merge(ticket_routes::router())
         .merge(attachment_routes::router())
-        .merge(user_routes::router())
+        .merge(user_routes::router(state.config.max_roster_bytes))
         .merge(admin_routes::router())
         .route("/api/{*path}", any(not_found))
         .route("/ws", any(not_found));

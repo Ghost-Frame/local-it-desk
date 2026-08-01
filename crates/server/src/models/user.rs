@@ -266,7 +266,7 @@ fn decode_user(row: &Row<'_>) -> rusqlite::Result<User> {
 }
 
 /// Normalizes optional email metadata without treating it as an identity key.
-fn normalize_email(email: Option<&str>) -> AppResult<Option<String>> {
+pub(crate) fn normalize_email(email: Option<&str>) -> AppResult<Option<String>> {
     let Some(email) = email else {
         return Ok(None);
     };

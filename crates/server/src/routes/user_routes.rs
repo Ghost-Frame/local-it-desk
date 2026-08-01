@@ -1,8 +1,9 @@
 //! Administrator-managed local staff account lifecycle routes.
 
-use axum::extract::{Path, Query, State};
-use axum::http::header::{CACHE_CONTROL, SET_COOKIE};
-use axum::http::{HeaderValue, StatusCode};
+use axum::body::Bytes;
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, SET_COOKIE};
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
@@ -18,6 +19,7 @@ use crate::auth::{password, session};
 use crate::db;
 use crate::error::{AppError, AppResult};
 use crate::models::audit::{self, NewAuditEntry};
+use crate::models::roster::{self, RosterPreview};
 use crate::models::user::{self, NewUser, User};
 
 /// Default number of accounts returned on one administration page.
@@ -69,6 +71,13 @@ struct OneTimeCredentialResponse {
     temporary_password: String,
 }
 
+/// Atomic roster apply result containing one-time onboarding credentials.
+#[derive(Serialize)]
+struct RosterApplyResponse {
+    /// Accounts created in CSV order with their one-time temporary passwords.
+    created: Vec<OneTimeCredentialResponse>,
+}
+
 /// Mutable account fields accepted by administrator lifecycle updates.
 #[derive(Debug, Deserialize)]
 struct UpdateUserRequest {
@@ -93,11 +102,18 @@ struct UserMutationResponse {
 }
 
 /// Mounts administrator-only staff account administration endpoints.
-pub fn router() -> Router<AppState> {
+pub fn router(max_roster_bytes: u64) -> Router<AppState> {
+    let roster_body_limit = usize::try_from(max_roster_bytes)
+        .expect("validated roster body limit must fit this platform");
+    let roster_routes = Router::new()
+        .route("/api/admin/users/import/preview", post(preview_roster))
+        .route("/api/admin/users/import/apply", post(apply_roster))
+        .route_layer(DefaultBodyLimit::max(roster_body_limit));
     Router::new()
         .route("/api/admin/users", get(list_users).post(create_user))
         .route("/api/admin/users/{id}", patch(update_user))
         .route("/api/admin/users/{id}/reset-password", post(reset_password))
+        .merge(roster_routes)
 }
 
 /// Lists a bounded page of public account records.
@@ -125,16 +141,16 @@ async fn create_user(
     RequireAdministrator(identity): RequireAdministrator,
     Json(request): Json<CreateUserRequest>,
 ) -> AppResult<Response> {
-    let temporary_password = password::generate_temporary_password();
-    let prepared = user::prepare(&NewUser {
-        username: &request.username,
-        display_name: &request.display_name,
-        email: request.email.as_deref(),
-        password: &temporary_password,
-        role: request.role,
-        must_change_password: true,
-    })?;
-    let account = db::interact(&state.pool, move |connection| {
+    let (account, temporary_password) = db::interact(&state.pool, move |connection| {
+        let temporary_password = password::generate_temporary_password();
+        let prepared = user::prepare(&NewUser {
+            username: &request.username,
+            display_name: &request.display_name,
+            email: request.email.as_deref(),
+            password: &temporary_password,
+            role: request.role,
+            must_change_password: true,
+        })?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let account = user::insert(&transaction, &prepared)?;
         let target_id = account.id.to_string();
@@ -152,7 +168,7 @@ async fn create_user(
             },
         )?;
         transaction.commit()?;
-        Ok(account)
+        Ok((account, temporary_password))
     })
     .await?;
     let mut response = (
@@ -163,6 +179,93 @@ async fn create_user(
         }),
     )
         .into_response();
+    prevent_storage(&mut response);
+    Ok(response)
+}
+
+/// Parses and checks a roster without changing any persisted account state.
+async fn preview_roster(
+    State(state): State<AppState>,
+    RequireAdministrator(_identity): RequireAdministrator,
+    headers: HeaderMap,
+    body: Bytes,
+) -> AppResult<Json<RosterPreview>> {
+    require_csv_content_type(&headers)?;
+    let max_bytes = state.config.max_roster_bytes;
+    let max_rows = state.config.max_roster_rows;
+    let mut preview = roster::parse(&body, max_bytes, max_rows)?;
+    preview = db::interact(&state.pool, move |connection| {
+        roster::add_existing_account_errors(connection, &mut preview)?;
+        Ok(preview)
+    })
+    .await?;
+    Ok(Json(preview))
+}
+
+/// Atomically creates every valid roster account and returns credentials once.
+async fn apply_roster(
+    State(state): State<AppState>,
+    RequireAdministrator(identity): RequireAdministrator,
+    headers: HeaderMap,
+    body: Bytes,
+) -> AppResult<Response> {
+    require_csv_content_type(&headers)?;
+    let max_bytes = state.config.max_roster_bytes;
+    let max_rows = state.config.max_roster_rows;
+    let mut preview = roster::parse(&body, max_bytes, max_rows)?;
+    preview = db::interact(&state.pool, move |connection| {
+        roster::add_existing_account_errors(connection, &mut preview)?;
+        Ok(preview)
+    })
+    .await?;
+    if !preview.valid {
+        return Err(AppError::BadRequest(
+            "roster contains validation errors; preview it before applying".to_string(),
+        ));
+    }
+
+    let created = db::interact(&state.pool, move |connection| {
+        let mut prepared = Vec::with_capacity(preview.rows.len());
+        for row in preview.rows {
+            let temporary_password = password::generate_temporary_password();
+            let account = user::prepare(&NewUser {
+                username: &row.username,
+                display_name: &row.display_name,
+                email: row.email.as_deref(),
+                password: &temporary_password,
+                role: row.role,
+                must_change_password: true,
+            })?;
+            prepared.push((account, temporary_password));
+        }
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let mut created = Vec::with_capacity(prepared.len());
+        for (prepared, temporary_password) in prepared {
+            let account = user::insert(&transaction, &prepared)?;
+            created.push(OneTimeCredentialResponse {
+                user: account,
+                temporary_password,
+            });
+        }
+        let now = timestamp();
+        let summary = format!("Imported {} named staff accounts", created.len());
+        audit::record(
+            &transaction,
+            &NewAuditEntry {
+                actor_id: Some(identity.user_id),
+                action: "account.roster_imported",
+                target_type: "roster",
+                target_id: None,
+                summary: &summary,
+                source_address: None,
+                created_at: &now,
+            },
+        )?;
+        transaction.commit()?;
+        Ok(created)
+    })
+    .await?;
+    let mut response = (StatusCode::CREATED, Json(RosterApplyResponse { created })).into_response();
     prevent_storage(&mut response);
     Ok(response)
 }
@@ -276,9 +379,9 @@ async fn reset_password(
     RequireAdministrator(identity): RequireAdministrator,
     Path(target_id): Path<Uuid>,
 ) -> AppResult<Response> {
-    let temporary_password = password::generate_temporary_password();
-    let password_hash = password::hash_password(&temporary_password)?;
-    let account = db::interact(&state.pool, move |connection| {
+    let (account, temporary_password) = db::interact(&state.pool, move |connection| {
+        let temporary_password = password::generate_temporary_password();
+        let password_hash = password::hash_password(&temporary_password)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if user::find_by_id(&transaction, target_id)?.is_none() {
             return Err(AppError::NotFound);
@@ -306,7 +409,7 @@ async fn reset_password(
         )?;
         let account = user::find_by_id(&transaction, target_id)?.ok_or(AppError::NotFound)?;
         transaction.commit()?;
-        Ok(account)
+        Ok((account, temporary_password))
     })
     .await?;
     let mut response = Json(OneTimeCredentialResponse {
@@ -372,6 +475,21 @@ fn prevent_storage(response: &mut Response) {
     response
         .headers_mut()
         .insert(CACHE_CONTROL, HeaderValue::from_static("no-store"));
+}
+
+/// Requires the documented raw CSV request media type.
+fn require_csv_content_type(headers: &HeaderMap) -> AppResult<()> {
+    let is_csv = headers
+        .get(CONTENT_TYPE)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| value.split(';').next())
+        .is_some_and(|value| value.trim().eq_ignore_ascii_case("text/csv"));
+    if !is_csv {
+        return Err(AppError::UnsupportedMediaType(
+            "expected text/csv".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 /// Returns one UTC timestamp in the schema's stable text representation.
