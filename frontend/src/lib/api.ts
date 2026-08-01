@@ -4,16 +4,22 @@ import type {
   AuthSession,
   AuditEntry,
   ChangePasswordRequest,
+  CreateUserRequest,
   CreateTicketRequest,
   ListTicketsParams,
   LoginRequest,
+  OneTimeCredential,
+  Page,
   PublicConfig,
+  RosterApplyResult,
+  RosterPreview,
   SetupRequest,
   Ticket,
   TicketComment,
   UpdateTicketRequest,
+  UpdateUserRequest,
   User,
-  UserRole,
+  UserMutation,
 } from "@/types/api";
 
 /** Error thrown when an API request returns a non-success status. */
@@ -46,10 +52,15 @@ export class ApiClient {
   /** Per-session CSRF secret retained only by this in-memory client instance. */
   private csrfToken: string | null = null;
 
-  /** Sends a JSON request with same-origin cookies and request-integrity proof. */
-  private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+  /** Sends a same-origin request with transient request-integrity proof. */
+  private async request<T>(
+    method: string,
+    path: string,
+    body?: unknown,
+    contentType = "application/json",
+  ): Promise<T> {
     const headers = new Headers();
-    if (body !== undefined) headers.set("Content-Type", "application/json");
+    if (body !== undefined) headers.set("Content-Type", contentType);
     if (this.csrfToken && !["GET", "HEAD", "OPTIONS"].includes(method)) {
       headers.set("X-CSRF-Token", this.csrfToken);
     }
@@ -57,7 +68,12 @@ export class ApiClient {
       method,
       credentials: "same-origin",
       headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
+      body:
+        body === undefined
+          ? undefined
+          : contentType === "application/json"
+            ? JSON.stringify(body)
+            : String(body),
     });
     if (!response.ok) {
       throw new ApiError(response.status, await response.json().catch(() => null));
@@ -70,6 +86,12 @@ export class ApiClient {
   private acceptSession(session: AuthSession): User {
     this.csrfToken = session.csrf_token;
     return session.user;
+  }
+
+  /** Accepts an optional CSRF rotation from a signed-in account mutation. */
+  private acceptMutation(mutation: UserMutation): User {
+    if (mutation.csrf_token) this.csrfToken = mutation.csrf_token;
+    return mutation.user;
   }
 
   /** Clears all browser-process authentication material held by the client. */
@@ -117,14 +139,40 @@ export class ApiClient {
     return this.acceptSession(session);
   }
 
-  /** Lists accounts for administrator-managed assignment controls. */
-  async listUsers(): Promise<User[]> {
-    return this.request("GET", "/users");
+  /** Lists a bounded page of administrator-visible local accounts. */
+  async listUsers(page = 1, pageSize = 100): Promise<Page<User>> {
+    return this.request("GET", `/admin/users?page=${page}&page_size=${pageSize}`);
   }
 
-  /** Updates one account role. */
-  async updateRole(userId: string, role: UserRole): Promise<void> {
-    return this.request("PATCH", `/users/${userId}/role`, { role });
+  /** Creates one forced-change local account and returns its password once. */
+  async createUser(details: CreateUserRequest): Promise<OneTimeCredential> {
+    return this.request("POST", "/admin/users", details);
+  }
+
+  /** Updates one local account while accepting any self-session rotation. */
+  async updateUser(userId: string, details: UpdateUserRequest): Promise<User> {
+    const mutation = await this.request<UserMutation>("PATCH", `/admin/users/${userId}`, details);
+    return this.acceptMutation(mutation);
+  }
+
+  /** Resets one account password and returns its replacement exactly once. */
+  async resetUserPassword(userId: string): Promise<OneTimeCredential> {
+    return this.request("POST", `/admin/users/${userId}/reset-password`);
+  }
+
+  /** Revokes every active session for one local account. */
+  async revokeUserSessions(userId: string): Promise<void> {
+    return this.request("DELETE", `/admin/users/${userId}/sessions`);
+  }
+
+  /** Validates one CSV roster without changing persisted accounts. */
+  async previewRoster(csv: string): Promise<RosterPreview> {
+    return this.request("POST", "/admin/users/import/preview", csv, "text/csv");
+  }
+
+  /** Applies one previously previewed roster as a single transaction. */
+  async applyRoster(csv: string): Promise<RosterApplyResult> {
+    return this.request("POST", "/admin/users/import/apply", csv, "text/csv");
   }
 
   /** Lists tickets visible to the current account. */
@@ -163,8 +211,8 @@ export class ApiClient {
   }
 
   /** Loads recent privacy-bounded administrative audit entries. */
-  async listAuditEntries(): Promise<AuditEntry[]> {
-    return this.request("GET", "/admin/audit-log");
+  async listAuditEntries(page = 1, pageSize = 100): Promise<Page<AuditEntry>> {
+    return this.request("GET", `/admin/audit-log?page=${page}&page_size=${pageSize}`);
   }
 }
 

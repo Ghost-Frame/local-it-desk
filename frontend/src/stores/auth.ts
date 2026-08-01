@@ -84,6 +84,11 @@ export const useAuthStore = defineStore("auth", () => {
     }
   }
 
+  /** Forgets a session that an administrator action already revoked server-side. */
+  function forgetSession(): void {
+    clearIdentity();
+  }
+
   /** Clears public identity and transient request-integrity state together. */
   function clearIdentity(): void {
     user.value = null;
@@ -105,5 +110,6 @@ export const useAuthStore = defineStore("auth", () => {
     login,
     changePassword,
     logout,
+    forgetSession,
   };
 });
