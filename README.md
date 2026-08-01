@@ -19,8 +19,8 @@ From the repository root:
 
 ~~~sh runbook-check
 cp .env.example .env
-docker build --tag local-it-desk:0.1.0 .
-export LOCAL_IT_DESK_IMAGE=local-it-desk:0.1.0
+docker build --tag local-it-desk:0.1.1 .
+export LOCAL_IT_DESK_IMAGE=local-it-desk:0.1.1
 docker compose --project-name local-it-desk-evaluation config --quiet
 docker compose --project-name local-it-desk-evaluation up --detach
 docker compose --project-name local-it-desk-evaluation ps
@@ -43,9 +43,9 @@ Download the versioned archive and matching `.sha256` file from
 the outer checksum before extraction, then verify the bundle manifest:
 
 ~~~sh runbook-check
-sha256sum --check local-it-desk-0.1.0.tar.gz.sha256
-tar --extract --gzip --file local-it-desk-0.1.0.tar.gz
-cd local-it-desk-0.1.0
+sha256sum --check local-it-desk-0.1.1.tar.gz.sha256
+tar --extract --gzip --file local-it-desk-0.1.1.tar.gz
+cd local-it-desk-0.1.1
 sha256sum --check SHA256SUMS
 ~~~
 

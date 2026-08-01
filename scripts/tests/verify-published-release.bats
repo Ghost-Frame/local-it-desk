@@ -7,7 +7,7 @@ setup() {
   export VERIFIER="$BATS_TEST_DIRNAME/../verify-published-release.sh"
   export REPO_ROOT="$BATS_TEST_DIRNAME/../.."
   export FIXTURE_ROOT="$BATS_TEST_TMPDIR/fixture"
-  export FIXTURE_VERSION='0.1.0'
+  export FIXTURE_VERSION='0.1.1'
   export FIXTURE_TAG="v${FIXTURE_VERSION}"
   export FIXTURE_SOURCE_SHA='aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
   mkdir -p "$FIXTURE_ROOT/assets" "$FIXTURE_ROOT/bin"
@@ -53,10 +53,17 @@ build_release_assets() {
     "$bundle_root/docs" \
     "$bundle_root/release" \
     "$bundle_root/scripts"
-  cp "$REPO_ROOT/.env.example" "$bundle_root/.env.example"
+  awk -v immutable_image="docker.io/ghostframe/local-it-desk@${FIXTURE_IMAGE_DIGEST}" '
+    /^LOCAL_IT_DESK_IMAGE=/ {
+      print "LOCAL_IT_DESK_IMAGE=" immutable_image
+      next
+    }
+    { print }
+  ' "$REPO_ROOT/.env.example" >"$bundle_root/.env.example"
   cp "$REPO_ROOT/compose.https.yaml" "$bundle_root/compose.https.yaml"
   cp "$REPO_ROOT/deploy/Caddyfile" "$bundle_root/deploy/Caddyfile"
   cp "$REPO_ROOT/docs/BACKUP-RESTORE.md" "$bundle_root/docs/BACKUP-RESTORE.md"
+  cp "$REPO_ROOT/docs/ROSTER-IMPORT.md" "$bundle_root/docs/ROSTER-IMPORT.md"
   cp "$REPO_ROOT/docs/RUNBOOK.md" "$bundle_root/docs/RUNBOOK.md"
   cp "$REPO_ROOT/docs/TLS.md" "$bundle_root/docs/TLS.md"
   cp "$REPO_ROOT/release/allowed_signers" "$bundle_root/release/allowed_signers"

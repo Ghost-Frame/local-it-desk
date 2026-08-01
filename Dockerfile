@@ -21,7 +21,7 @@ FROM debian:12.15-slim AS runtime
 
 LABEL org.opencontainers.image.title="Local IT Desk" \
       org.opencontainers.image.description="Local-network help desk for named staff accounts" \
-      org.opencontainers.image.version="0.1.0"
+      org.opencontainers.image.version="0.1.1"
 
 RUN apt-get update \
     && apt-get upgrade --yes \

@@ -84,6 +84,13 @@ if ! grep -Fq -- "\${LOCAL_IT_DESK_IMAGE:-${source_image_default}}" "${repo_root
   printf 'Bundle build failed: source Compose version does not match release version.\n' >&2
   exit 1
 fi
+# Expected source-build image selected by the operator environment template.
+readonly source_environment_image="local-it-desk:${version}"
+if [[ "$(awk '/^LOCAL_IT_DESK_IMAGE=/{ count += 1 } END { print count + 0 }' "${repo_root}/.env.example")" -ne 1 \
+  || "$(grep -Fxc -- "LOCAL_IT_DESK_IMAGE=${source_environment_image}" "${repo_root}/.env.example")" -ne 1 ]]; then
+  printf 'Bundle build failed: source environment image does not match release version.\n' >&2
+  exit 1
+fi
 
 # Files copied without source-code or operator data.
 readonly release_inputs=(
@@ -94,6 +101,7 @@ readonly release_inputs=(
   docs/RUNBOOK.md
   docs/TLS.md
   docs/BACKUP-RESTORE.md
+  docs/ROSTER-IMPORT.md
   release/README.txt
   release/allowed_signers
   scripts/restore-compose.sh
@@ -117,6 +125,17 @@ for input_path in "${release_inputs[@]}"; do
   install -m 0644 "${repo_root}/${input_path}" "${bundle_root}/${input_path}"
 done
 chmod 0755 "${bundle_root}/scripts/restore-compose.sh"
+
+# Replaces the source-build image with the exact published digest in the operator environment.
+awk -v immutable_image="${image_ref}@${image_digest}" '
+  /^LOCAL_IT_DESK_IMAGE=/ {
+    print "LOCAL_IT_DESK_IMAGE=" immutable_image
+    replaced = 1
+    next
+  }
+  { print }
+  END { if (replaced != 1) exit 1 }
+' "${repo_root}/.env.example" >"${bundle_root}/.env.example"
 
 # Renders the operator template with the exact release version.
 if ! grep -Fq -- VERSION "${repo_root}/release/README.txt"; then

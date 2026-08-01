@@ -87,6 +87,7 @@ readonly required_files=(
   compose.yaml
   deploy/Caddyfile
   docs/BACKUP-RESTORE.md
+  docs/ROSTER-IMPORT.md
   docs/RUNBOOK.md
   docs/TLS.md
   release/README.txt
@@ -136,6 +137,31 @@ grep -Fq -- "\${LOCAL_IT_DESK_IMAGE:-${immutable_image}}" "${bundle_root}/compos
 if grep -En 'docker\.io/ghostframe/local-it-desk:(latest|[0-9]+\.[0-9]+\.[0-9]+)' "${bundle_root}/compose.yaml"; then
   fail 'Compose contains a mutable production image reference'
 fi
+[[ "$(grep -Fxc -- "LOCAL_IT_DESK_IMAGE=${immutable_image}" "${bundle_root}/.env.example")" -eq 1 ]] \
+  || fail 'environment template does not contain the metadata image digest exactly once'
+if grep -En '^LOCAL_IT_DESK_IMAGE=.*:(latest|[0-9]+\.[0-9]+\.[0-9]+)$' \
+  "${bundle_root}/.env.example"; then
+  fail 'environment template contains a mutable production image reference'
+fi
+
+# Every relative Markdown link in the operator documentation must resolve inside the bundle.
+while IFS= read -r -d '' documentation_path; do
+  while IFS= read -r markdown_link; do
+    link_target="${markdown_link#](}"
+    link_target="${link_target%)}"
+    link_target="${link_target%%#*}"
+    if [[ "${link_target}" == /* ]]; then
+      fail "operator documentation has an absolute local link: ${link_target}"
+    fi
+    if [[ -z "${link_target}" \
+      || "${link_target}" =~ ^[a-zA-Z][a-zA-Z0-9+.-]*: ]]; then
+      continue
+    fi
+    resolved_link="$(realpath -m -- "$(dirname -- "${documentation_path}")/${link_target}")"
+    [[ "${resolved_link}" == "${bundle_root}/"* && -f "${resolved_link}" ]] \
+      || fail "operator documentation has an unresolved local link: ${link_target}"
+  done < <(grep -Eo '\]\([^)]*\)' "${documentation_path}" || true)
+done < <(find "${bundle_root}/docs" -type f -name '*.md' -print0 | sort -z)
 
 jq -e '.spdxVersion | startswith("SPDX-")' "${bundle_root}/release/sbom.spdx.json" >/dev/null \
   || fail 'software bill of materials is not SPDX JSON'

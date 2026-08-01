@@ -43,11 +43,11 @@ Place the published operator archive and checksum file in an empty working
 directory, then run:
 
 ~~~sh runbook-check
-sha256sum --check local-it-desk-0.1.0.tar.gz.sha256
-tar --extract --gzip --file local-it-desk-0.1.0.tar.gz
-cd local-it-desk-0.1.0
+sha256sum --check local-it-desk-0.1.1.tar.gz.sha256
+tar --extract --gzip --file local-it-desk-0.1.1.tar.gz
+cd local-it-desk-0.1.1
 sha256sum --check SHA256SUMS
-jq -e '.version == "0.1.0" and (.image.digest | test("^sha256:[0-9a-f]{64}$"))' \
+jq -e '.version == "0.1.1" and (.image.digest | test("^sha256:[0-9a-f]{64}$"))' \
   release/release-metadata.json
 docker compose config --quiet
 ~~~

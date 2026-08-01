@@ -5,6 +5,22 @@ All notable changes to Local IT Desk are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.1] - 2026-08-01
+
+### Fixed
+
+- The operator environment template now selects the exact digest-pinned image
+  recorded in release metadata instead of an unqualified local image tag.
+- The operator bundle now includes the staff roster import guide referenced by
+  the runbook.
+- Bundle verification now rejects mutable environment images and unresolved
+  local documentation links.
+
+### Pilot status
+
+- Version 0.1.1 replaces 0.1.0 for teacher evaluation. Version 0.1.0 remains
+  available as an immutable historical release and must not be deployed.
+
 ## [0.1.0] - 2026-08-01
 
 ### Added
@@ -25,6 +41,5 @@ and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 
 ### Pilot status
 
-- Version 0.1.0 is the first teacher pilot release. Use invented accounts and
-  data over plain HTTP. Configure trusted HTTPS before entering real staff
-  identities, credentials, tickets, or attachments.
+- Version 0.1.0 was the first published pilot candidate but its operator bundle
+  selected an unqualified image and omitted a linked guide. Use 0.1.1 or later.

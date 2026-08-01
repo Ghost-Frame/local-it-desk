@@ -14,7 +14,7 @@ use tar::{Archive, Builder};
 use tempfile::TempDir;
 
 /// Release version exercised by the public pilot artifact tests.
-const VERSION: &str = "0.1.0";
+const VERSION: &str = "0.1.1";
 /// Fixed valid image digest used only for generated test fixtures.
 const IMAGE_DIGEST: &str =
     "sha256:1111111111111111111111111111111111111111111111111111111111111111";
@@ -28,6 +28,10 @@ enum Mutation {
     Placeholder,
     /// Replaces the immutable image digest with a mutable version tag.
     MutableImage,
+    /// Replaces the immutable environment image with a mutable version tag.
+    MutableEnvironmentImage,
+    /// Changes an operator documentation link to a missing local file.
+    BrokenDocumentationLink,
     /// Changes metadata to a version different from the archive name.
     WrongVersion,
     /// Changes a covered file without updating the internal checksum manifest.
@@ -44,6 +48,8 @@ impl Mutation {
             Self::MissingFile => "missing-file",
             Self::Placeholder => "placeholder",
             Self::MutableImage => "mutable-image",
+            Self::MutableEnvironmentImage => "mutable-environment-image",
+            Self::BrokenDocumentationLink => "broken-documentation-link",
             Self::WrongVersion => "wrong-version",
             Self::BadChecksum => "bad-checksum",
             Self::MissingDigest => "missing-digest",
@@ -220,10 +226,36 @@ fn mutated_archive(valid_archive: &Path, temp: &TempDir, mutation: Mutation) -> 
             let compose = fs::read_to_string(&path).expect("read Compose fixture");
             let mutable = compose.replace(
                 &format!("docker.io/ghostframe/local-it-desk@{IMAGE_DIGEST}"),
-                "docker.io/ghostframe/local-it-desk:0.1.0",
+                "docker.io/ghostframe/local-it-desk:0.1.1",
             );
             assert_ne!(compose, mutable, "immutable image fixture must be replaced");
             fs::write(path, mutable).expect("write mutable Compose fixture");
+        }
+        Mutation::MutableEnvironmentImage => {
+            let path = bundle_root.join(".env.example");
+            let environment = fs::read_to_string(&path).expect("read environment fixture");
+            let mutable = environment.replace(
+                &format!("docker.io/ghostframe/local-it-desk@{IMAGE_DIGEST}"),
+                "docker.io/ghostframe/local-it-desk:0.1.1",
+            );
+            assert_ne!(
+                environment, mutable,
+                "immutable environment image fixture must be replaced"
+            );
+            fs::write(path, mutable).expect("write mutable environment fixture");
+        }
+        Mutation::BrokenDocumentationLink => {
+            let path = bundle_root.join("docs/RUNBOOK.md");
+            let documentation = fs::read_to_string(&path).expect("read runbook fixture");
+            let broken = documentation.replace(
+                "[Staff Roster Import](ROSTER-IMPORT.md)",
+                "[Staff Roster Import](MISSING-ROSTER-IMPORT.md)",
+            );
+            assert_ne!(
+                documentation, broken,
+                "linked roster documentation fixture must be replaced"
+            );
+            fs::write(path, broken).expect("write broken documentation fixture");
         }
         Mutation::WrongVersion => {
             let path = bundle_root.join("release/release-metadata.json");
@@ -286,6 +318,8 @@ fn release_bundle_verifier_rejects_invalid_artifacts() {
         Mutation::MissingFile,
         Mutation::Placeholder,
         Mutation::MutableImage,
+        Mutation::MutableEnvironmentImage,
+        Mutation::BrokenDocumentationLink,
         Mutation::WrongVersion,
         Mutation::BadChecksum,
         Mutation::MissingDigest,
