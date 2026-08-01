@@ -48,6 +48,8 @@ fi
 [[ "$("${container_engine}" image inspect "${image_ref}" --format '{{json .Config.Healthcheck.Test}}')" == *'/app/local-it-desk-healthcheck'* ]]
 
 # Runtime filesystem contains only release artifacts and grants writes to explicit data paths.
+# The quoted expressions belong to the in-container shell and must not expand here.
+# shellcheck disable=SC2016
 "${container_engine}" run --rm --entrypoint /bin/sh "${image_ref}" -eu -c '
   test "$(id -u)" -ne 0
   test -x /app/local-it-desk

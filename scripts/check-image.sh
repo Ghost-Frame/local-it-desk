@@ -10,7 +10,8 @@ fi
 readonly image_ref="$1"
 readonly container_engine="${CONTAINER_ENGINE:-docker}"
 readonly trivy_image="${TRIVY_IMAGE:-docker.io/aquasec/trivy:0.72.0}"
-readonly scan_root="$(mktemp -d)"
+scan_root="$(mktemp -d)"
+readonly scan_root
 container_id=""
 
 # Removes only temporary scanner state and the exact inspection container.

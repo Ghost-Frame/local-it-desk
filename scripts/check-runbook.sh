@@ -61,6 +61,8 @@ check_shell_blocks() {
   local block_count=0
   local block_file=''
   local line
+  # The source and generated block paths are distinct; ShellCheck cannot infer that contract.
+  # shellcheck disable=SC2094
   while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ "$line" == '~~~sh runbook-check' ]]; then
       ((block_count += 1))

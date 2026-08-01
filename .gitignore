@@ -5,6 +5,8 @@
 /frontend/node_modules/
 /frontend/.node-test-build/
 /frontend/dist/
+/dist/
+/release-files/
 
 # Local runtime configuration and data
 /.env

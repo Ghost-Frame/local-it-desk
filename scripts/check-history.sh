@@ -2,7 +2,8 @@
 # Rejects private metadata, prohibited paths, large blobs, and secrets across Git history.
 set -euo pipefail
 
-readonly repo_root="$(git rev-parse --show-toplevel)"
+repo_root="$(git rev-parse --show-toplevel)"
+readonly repo_root
 cd "${repo_root}"
 
 if [[ "$(git rev-parse --is-shallow-repository)" != "false" ]]; then

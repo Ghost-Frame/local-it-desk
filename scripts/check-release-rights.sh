@@ -3,7 +3,8 @@
 set -euo pipefail
 
 # Resolves the repository root independently of the caller's working directory.
-readonly repo_root="$(git rev-parse --show-toplevel)"
+repo_root="$(git rev-parse --show-toplevel)"
+readonly repo_root
 cd "${repo_root}"
 
 readonly apache_license_sha256="074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff"
@@ -47,7 +48,7 @@ for tracked_path in "${release_paths[@]}"; do
     .dockerignore|.editorconfig|.env.example|.gitignore|CONTRIBUTING.md|Cargo.toml|Dockerfile|README.md|SECURITY.md|NOTICE|THIRD-PARTY-NOTICES.md|CHANGELOG.md|compose.yaml|compose.https.yaml|rust-toolchain.toml)
       classification="project-authored"
       ;;
-    .github/dependabot.yml|.github/workflows/*.yml|crates/server/Cargo.toml|crates/server/src/*.rs|crates/server/src/*/*.rs|crates/server/tests/*.rs|deploy/Caddyfile|docs/*.md|frontend/index.html|frontend/package.json|frontend/pnpm-workspace.yaml|frontend/tsconfig.json|frontend/tsconfig.test.json|frontend/vite.config.ts|frontend/src/*.ts|frontend/src/*.vue|frontend/src/*/*.ts|frontend/src/*/*.vue|frontend/src/assets/*.css|frontend/tests/*.ts|release/*|scripts/*.sh|scripts/tests/*.bats|tests/e2e/local-only/*.md|tests/e2e/local-only/*.sh)
+    .github/dependabot.yml|.github/workflows/*.yml|crates/server/Cargo.toml|crates/server/src/*.rs|crates/server/tests/*.rs|deploy/Caddyfile|docs/*.md|frontend/index.html|frontend/package.json|frontend/pnpm-workspace.yaml|frontend/tsconfig.json|frontend/tsconfig.test.json|frontend/vite.config.ts|frontend/src/*.css|frontend/src/*.ts|frontend/src/*.vue|frontend/tests/*.ts|release/*|scripts/*.sh|scripts/tests/*.bats|tests/e2e/local-only/*.md|tests/e2e/local-only/*.sh)
       classification="project-authored"
       ;;
     *)

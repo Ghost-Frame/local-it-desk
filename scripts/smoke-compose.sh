@@ -3,7 +3,8 @@
 set -euo pipefail
 
 # Repository root resolved from this script rather than the caller directory.
-readonly repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly repo_root
 # Container CLI providing build, inspect, network, and Compose operations.
 readonly container_engine="${CONTAINER_ENGINE:-docker}"
 # Unique project name prevents reuse of developer or prior smoke state.
@@ -13,7 +14,8 @@ readonly smoke_http_port="${SMOKE_HTTP_PORT:-$((20000 + ($$ % 20000)))}"
 # Exact browser origin shared by Compose and the HTTP journey client.
 readonly base_url="http://127.0.0.1:${smoke_http_port}"
 # Private retained directory for bounded diagnostics and journey identifiers.
-readonly evidence_dir="$(mktemp -d "${TMPDIR:-/tmp}/local-it-desk-smoke.XXXXXX")"
+evidence_dir="$(mktemp -d "${TMPDIR:-/tmp}/local-it-desk-smoke.XXXXXX")"
+readonly evidence_dir
 # Initial image reference used before the update exercise.
 readonly old_image="local-it-desk-smoke:0.1.0-${compose_project}"
 # Replacement image reference used during the update exercise.

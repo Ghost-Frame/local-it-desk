@@ -29,6 +29,8 @@ usage() {
 }
 
 # Restarts only the application service when apply exits after stopping it.
+# ShellCheck cannot see the indirect EXIT-trap invocation.
+# shellcheck disable=SC2329
 restart_app_if_needed() {
   if [[ "${app_stopped}" == 'true' ]]; then
     printf 'Restore did not finish cleanly; restarting the application service.\n' >&2

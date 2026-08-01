@@ -1,0 +1,163 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    name: Verify signed release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Check out complete tagged history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Validate version and signed tag
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          [[ "${version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$(git cat-file -t "${GITHUB_REF_NAME}")" = tag
+          test "$(git rev-parse "${GITHUB_REF_NAME}^{commit}")" = "${GITHUB_SHA}"
+          git -c gpg.ssh.allowedSignersFile="${GITHUB_WORKSPACE}/release/allowed_signers" \
+            verify-tag "${GITHUB_REF_NAME}"
+          printf 'version=%s\n' "${version}" >>"${GITHUB_OUTPUT}"
+      - name: Scan complete history for secrets
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.3.0
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.4.1
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Cache Rust build data
+        uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
+      - name: Install locked frontend dependencies
+        run: pnpm --dir frontend install --frozen-lockfile
+      - name: Run source and application gates
+        run: |
+          shellcheck scripts/*.sh
+          cargo fmt --all -- --check
+          cargo test --workspace --all-targets
+          cargo clippy --workspace --all-targets --all-features -- -D warnings
+          RUSTDOCFLAGS="-D missing_docs" cargo doc --workspace --no-deps --document-private-items
+          pnpm --dir frontend check
+          bash scripts/check-dependencies.sh
+          bash scripts/check-release-rights.sh
+          bash scripts/check-history.sh
+          bash scripts/check-forbidden-surfaces.sh
+          bash scripts/check-private-terms.sh
+          bash scripts/container-contract.sh
+          bash scripts/check-image.sh local-it-desk:verify
+          bash scripts/compose-contract.sh
+          bash scripts/check-runbook.sh
+          bash scripts/smoke-compose.sh
+
+  publish:
+    name: Publish release
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      actions: read
+      attestations: write
+      contents: write
+      id-token: write
+    env:
+      IMAGE_NAME: docker.io/ghostframe/local-it-desk
+      VERSION: ${{ needs.verify.outputs.version }}
+    steps:
+      - name: Check out tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+      - name: Authenticate to Docker Hub
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Build and publish multi-architecture image
+        id: image
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:${{ env.VERSION }}
+            ${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          sbom: true
+          provenance: mode=max
+      - name: Attest image provenance
+        id: provenance
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        with:
+          subject-name: ${{ env.IMAGE_NAME }}
+          subject-digest: ${{ steps.image.outputs.digest }}
+          push-to-registry: true
+      - name: Prepare release files
+        run: install -d -m 0755 release-files
+      - name: Generate SPDX software bill of materials
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
+        with:
+          image: ${{ env.IMAGE_NAME }}@${{ steps.image.outputs.digest }}
+          format: spdx-json
+          output-file: release-files/local-it-desk-${{ env.VERSION }}.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Build digest-pinned operator bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -- "${{ steps.provenance.outputs.bundle-path }}" \
+            "release-files/local-it-desk-${VERSION}.provenance.json"
+          bash scripts/build-release-bundle.sh \
+            "${VERSION}" \
+            "${GITHUB_SHA}" \
+            "${IMAGE_NAME}" \
+            "${{ steps.image.outputs.digest }}" \
+            "release-files/local-it-desk-${VERSION}.spdx.json" \
+            "release-files/local-it-desk-${VERSION}.provenance.json"
+          awk -v release_version="${VERSION}" \
+            '{ gsub(/VERSION/, release_version); print }' \
+            release/README.txt >release-files/release-notes.txt
+          ! grep -Fq -- VERSION release-files/release-notes.txt
+      - name: Create immutable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            "dist/local-it-desk-${VERSION}.tar.gz" \
+            "dist/local-it-desk-${VERSION}.tar.gz.sha256" \
+            "release-files/local-it-desk-${VERSION}.spdx.json" \
+            "release-files/local-it-desk-${VERSION}.provenance.json" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --title "Local IT Desk ${VERSION}" \
+            --notes-file release-files/release-notes.txt

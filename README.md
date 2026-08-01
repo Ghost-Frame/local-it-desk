@@ -20,6 +20,7 @@ From the repository root:
 ~~~sh runbook-check
 cp .env.example .env
 docker build --tag local-it-desk:0.1.0 .
+export LOCAL_IT_DESK_IMAGE=local-it-desk:0.1.0
 docker compose --project-name local-it-desk-evaluation config --quiet
 docker compose --project-name local-it-desk-evaluation up --detach
 docker compose --project-name local-it-desk-evaluation ps
@@ -34,6 +35,23 @@ For a school deployment, follow the [operator runbook](docs/RUNBOOK.md), then
 complete the [trusted HTTPS procedure](docs/TLS.md) before creating staff
 accounts. Backup and recovery procedures are in
 [Backup and Restore](docs/BACKUP-RESTORE.md).
+
+## Install a published release
+
+Download the versioned archive and matching `.sha256` file from
+[GitHub Releases](https://github.com/Ghost-Frame/local-it-desk/releases). Verify
+the outer checksum before extraction, then verify the bundle manifest:
+
+~~~sh runbook-check
+sha256sum --check local-it-desk-0.1.0.tar.gz.sha256
+tar --extract --gzip --file local-it-desk-0.1.0.tar.gz
+cd local-it-desk-0.1.0
+sha256sum --check SHA256SUMS
+~~~
+
+The packaged Compose file pins the application image by digest. Follow the
+included operator runbook and configure trusted HTTPS before using real staff
+accounts or ticket data.
 
 ## Product boundary
 
@@ -88,6 +106,7 @@ bash scripts/check-runbook.sh
 bash scripts/smoke-compose.sh
 bash scripts/check-dependencies.sh
 bash scripts/check-release-rights.sh
+bash scripts/check-history.sh
 bash scripts/check-forbidden-surfaces.sh
 bash scripts/check-private-terms.sh
 ~~~
