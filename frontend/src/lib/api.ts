@@ -1,13 +1,19 @@
 import type {
   AddCommentRequest,
+  AdminSettings,
+  Announcement,
   Attachment,
   AuthSession,
   AuditEntry,
   ChangePasswordRequest,
-  CreateUserRequest,
+  Category,
+  CreateAnnouncementRequest,
+  CreateCategoryRequest,
   CreateTicketRequest,
+  CreateUserRequest,
   ListTicketsParams,
   LoginRequest,
+  Notification,
   OneTimeCredential,
   Page,
   PublicConfig,
@@ -18,6 +24,9 @@ import type {
   TicketComment,
   TicketPage,
   UpdateTicketRequest,
+  UpdateAdminSettingsRequest,
+  UpdateAnnouncementRequest,
+  UpdateCategoryRequest,
   UpdateUserRequest,
   User,
   UserMutation,
@@ -238,6 +247,128 @@ export class ApiClient {
       throw new ApiError(response.status, await response.json().catch(() => null));
     }
     return response.json() as Promise<Attachment>;
+  }
+
+  /** Lists published staff announcements in server-defined display order. */
+  async listAnnouncements(): Promise<Announcement[]> {
+    return this.request("GET", "/announcements");
+  }
+
+  /** Lists every announcement lifecycle state for an administrator. */
+  async listAdminAnnouncements(): Promise<Announcement[]> {
+    return this.request("GET", "/admin/announcements");
+  }
+
+  /** Creates one administrator-only announcement draft. */
+  async createAnnouncement(data: CreateAnnouncementRequest): Promise<Announcement> {
+    return this.request("POST", "/admin/announcements", data);
+  }
+
+  /** Updates editable content or pin state on one announcement. */
+  async updateAnnouncement(
+    announcementId: string,
+    data: UpdateAnnouncementRequest,
+  ): Promise<Announcement> {
+    return this.request(
+      "PATCH",
+      "/admin/announcements/" + encodeURIComponent(announcementId),
+      data,
+    );
+  }
+
+  /** Publishes one draft announcement. */
+  async publishAnnouncement(announcementId: string): Promise<Announcement> {
+    return this.request(
+      "POST",
+      "/admin/announcements/" + encodeURIComponent(announcementId) + "/publish",
+      {},
+    );
+  }
+
+  /** Archives one draft or published announcement. */
+  async archiveAnnouncement(announcementId: string): Promise<Announcement> {
+    return this.request(
+      "POST",
+      "/admin/announcements/" + encodeURIComponent(announcementId) + "/archive",
+      {},
+    );
+  }
+
+  /** Lists the current account's newest private notifications. */
+  async listNotifications(): Promise<Notification[]> {
+    return this.request("GET", "/notifications");
+  }
+
+  /** Returns the current account's unread notification count. */
+  async getUnreadNotificationCount(): Promise<number> {
+    const response = await this.request<{ count: number }>("GET", "/notifications/unread-count");
+    return response.count;
+  }
+
+  /** Idempotently marks one owned notification read. */
+  async markNotificationRead(notificationId: string): Promise<void> {
+    return this.request(
+      "POST",
+      "/notifications/" + encodeURIComponent(notificationId) + "/read",
+      {},
+    );
+  }
+
+  /** Marks all current-account notifications read. */
+  async markAllNotificationsRead(): Promise<void> {
+    return this.request("POST", "/notifications/read-all", {});
+  }
+
+  /** Loads administrator-visible non-secret settings. */
+  async getAdminSettings(): Promise<AdminSettings> {
+    return this.request("GET", "/admin/settings");
+  }
+
+  /** Applies one partial non-secret settings update. */
+  async updateAdminSettings(data: UpdateAdminSettingsRequest): Promise<AdminSettings> {
+    return this.request("PATCH", "/admin/settings", data);
+  }
+
+  /** Lists active and inactive administrator-managed categories. */
+  async listCategories(): Promise<Category[]> {
+    return this.request("GET", "/admin/categories");
+  }
+
+  /** Creates one active ticket category. */
+  async createCategory(data: CreateCategoryRequest): Promise<Category> {
+    return this.request("POST", "/admin/categories", data);
+  }
+
+  /** Updates one administrator-managed category. */
+  async updateCategory(categoryId: string, data: UpdateCategoryRequest): Promise<Category> {
+    return this.request("PATCH", "/admin/categories/" + encodeURIComponent(categoryId), data);
+  }
+
+  /** Selects one active category as the requester default. */
+  async selectDefaultCategory(categoryId: string): Promise<AdminSettings> {
+    return this.request(
+      "POST",
+      "/admin/categories/" + encodeURIComponent(categoryId) + "/default",
+      {},
+    );
+  }
+
+  /** Uploads and activates one server-validated raster application logo. */
+  async uploadLogo(file: File): Promise<AdminSettings> {
+    const form = new FormData();
+    form.set("file", file, file.name);
+    const headers = new Headers();
+    if (this.csrfToken) headers.set("X-CSRF-Token", this.csrfToken);
+    const response = await fetch("/api/admin/settings/logo", {
+      method: "POST",
+      credentials: "same-origin",
+      headers,
+      body: form,
+    });
+    if (!response.ok) {
+      throw new ApiError(response.status, await response.json().catch(() => null));
+    }
+    return response.json() as Promise<AdminSettings>;
   }
 
   /** Returns the same-origin download path for one authorized attachment. */

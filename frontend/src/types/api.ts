@@ -139,6 +139,137 @@ export interface PublicCategory {
   sort_order: number;
 }
 
+/** Administrator-controlled staff bulletin lifecycle states. */
+export type AnnouncementState = "draft" | "published" | "archived";
+
+/** One local staff announcement returned as unrendered Markdown source. */
+export interface Announcement {
+  /** Stable announcement identifier. */
+  id: string;
+  /** Concise staff-facing heading. */
+  title: string;
+  /** Unrendered Markdown source. */
+  body: string;
+  /** Administrator who created the record. */
+  author_id: string;
+  /** Current administrator-controlled lifecycle state. */
+  state: AnnouncementState;
+  /** Whether the notice sorts before ordinary published items. */
+  is_pinned: boolean;
+  /** UTC timestamp of first publication. */
+  published_at: string | null;
+  /** UTC creation timestamp. */
+  created_at: string;
+  /** UTC latest-mutation timestamp. */
+  updated_at: string;
+}
+
+/** Input used to create one private announcement draft. */
+export interface CreateAnnouncementRequest {
+  /** Concise staff-facing heading. */
+  title: string;
+  /** Unrendered Markdown source. */
+  body: string;
+  /** Initial pinned state. */
+  is_pinned?: boolean;
+}
+
+/** Editable fields on a non-archived announcement. */
+export interface UpdateAnnouncementRequest {
+  /** Optional replacement heading. */
+  title?: string;
+  /** Optional replacement Markdown source. */
+  body?: string;
+  /** Optional replacement pinned state. */
+  is_pinned?: boolean;
+}
+
+/** Private current-account event kinds. */
+export type NotificationKind =
+  | "ticket_created"
+  | "new_ticket"
+  | "ticket_comment"
+  | "ticket_status_changed"
+  | "ticket_resolved"
+  | "ticket_reopened"
+  | "announcement_published";
+
+/** One bounded in-app notice owned by exactly one account. */
+export interface Notification {
+  /** Stable notification identifier. */
+  id: string;
+  /** Account allowed to read this record. */
+  user_id: string;
+  /** Typed source event. */
+  kind: NotificationKind;
+  /** Generic event heading. */
+  title: string;
+  /** Bounded summary without submitted content. */
+  body: string;
+  /** Optional same-origin application destination. */
+  target_path: string | null;
+  /** UTC creation timestamp. */
+  created_at: string;
+  /** UTC first-read timestamp. */
+  read_at: string | null;
+}
+
+/** Administrator-visible non-secret runtime settings. */
+export interface AdminSettings {
+  /** Name shown throughout the browser application. */
+  app_name: string;
+  /** Optional local support contact. */
+  support_contact: string | null;
+  /** Stable public logo endpoint when configured. */
+  logo_url: string | null;
+  /** Active category preselected for new tickets. */
+  default_category_id: string | null;
+  /** Priority preselected for new tickets. */
+  default_priority: TicketPriority;
+}
+
+/** Partial non-secret settings mutation. */
+export interface UpdateAdminSettingsRequest {
+  /** Optional replacement application name. */
+  app_name?: string;
+  /** Optional replacement support contact where blank clears it. */
+  support_contact?: string;
+  /** Optional replacement default urgency. */
+  default_priority?: TicketPriority;
+}
+
+/** One administrator-managed ticket category including inactive records. */
+export interface Category extends PublicCategory {
+  /** Whether requesters may select this category. */
+  is_active: boolean;
+  /** UTC creation timestamp. */
+  created_at: string;
+  /** UTC latest-mutation timestamp. */
+  updated_at: string;
+}
+
+/** Input used to create one active category. */
+export interface CreateCategoryRequest {
+  /** Unique staff-facing category name. */
+  name: string;
+  /** Optional explanatory text. */
+  description: string | null;
+  /** Explicit display order. */
+  sort_order?: number;
+}
+
+/** Editable category fields. */
+export interface UpdateCategoryRequest {
+  /** Optional replacement name. */
+  name?: string;
+  /** Optional replacement description where blank clears it. */
+  description?: string;
+  /** Optional requester-selectable state. */
+  is_active?: boolean;
+  /** Optional replacement display order. */
+  sort_order?: number;
+}
+
 /** Credentials submitted to the built-in local login endpoint. */
 export interface LoginRequest {
   /** Normalized local username. */

@@ -5,6 +5,7 @@ import { useRouter } from "vue-router";
 
 import { useTheme } from "@/composables/useTheme";
 import { useAuthStore } from "@/stores/auth";
+import NotificationMenu from "@/components/layout/NotificationMenu.vue";
 
 const emit = defineEmits<{
   /** Toggles the small-screen navigation drawer. */
@@ -43,6 +44,7 @@ async function signOut(): Promise<void> {
       <span class="hidden max-w-40 truncate text-sm text-[var(--color-text-secondary)] md:block">
         {{ displayName }}
       </span>
+      <NotificationMenu />
       <button
         class="min-h-11 rounded-lg border px-3 text-xs font-semibold uppercase tracking-wider"
         :style="{ borderColor: 'var(--color-border-default)' }"

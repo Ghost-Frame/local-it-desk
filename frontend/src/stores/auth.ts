@@ -16,6 +16,8 @@ import type {
 export const useAuthStore = defineStore("auth", () => {
   const user = ref<User | null>(null);
   const publicConfig = ref<PublicConfig | null>(null);
+  /** In-memory cache revision changed after each successful branding refresh. */
+  const brandingRevision = ref(0);
   const isLoading = ref(true);
   let initPromise: Promise<void> | null = null;
 
@@ -33,6 +35,26 @@ export const useAuthStore = defineStore("auth", () => {
   const isAdministrator = computed(() => user.value?.role === "administrator");
   /** Display name used by the application shell. */
   const displayName = computed(() => user.value?.display_name ?? "Signed out");
+  /** Cache-busted same-origin logo URL for the current runtime branding revision. */
+  const logoUrl = computed(() => {
+    const source = publicConfig.value?.logo_url;
+    return source ? source + "?v=" + brandingRevision.value : null;
+  });
+
+  /** Accepts public configuration and updates browser-visible runtime branding. */
+  function acceptPublicConfig(config: PublicConfig): void {
+    publicConfig.value = config;
+    brandingRevision.value = Date.now();
+    if (typeof document !== "undefined") document.title = config.app_name;
+  }
+
+  /** Reloads non-secret configuration after administrator runtime changes. */
+  async function refreshPublicConfig(): Promise<PublicConfig> {
+    /** Fresh configuration also gives callers a strictly non-null snapshot. */
+    const config = await api.getPublicConfig();
+    acceptPublicConfig(config);
+    return config;
+  }
 
   /** Loads public configuration and resolves an existing cookie session once. */
   async function init(): Promise<void> {
@@ -44,8 +66,9 @@ export const useAuthStore = defineStore("auth", () => {
   /** Performs first-load requests without exposing authentication details. */
   async function initialize(): Promise<void> {
     try {
-      publicConfig.value = await api.getPublicConfig();
-      if (publicConfig.value.setup_required) {
+      /** Non-null initialization snapshot avoids reasoning through mutable ref state. */
+      const config = await refreshPublicConfig();
+      if (config.setup_required) {
         clearIdentity();
         return;
       }
@@ -105,11 +128,13 @@ export const useAuthStore = defineStore("auth", () => {
     canWorkTickets,
     isAdministrator,
     displayName,
+    logoUrl,
     init,
     setup,
     login,
     changePassword,
     logout,
     forgetSession,
+    refreshPublicConfig,
   };
 });

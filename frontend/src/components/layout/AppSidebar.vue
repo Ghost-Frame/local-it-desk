@@ -15,7 +15,7 @@ const emit = defineEmits<{
 }>();
 
 const authStore = useAuthStore();
-const { displayName, isAdministrator, publicConfig } = storeToRefs(authStore);
+const { displayName, isAdministrator, logoUrl, publicConfig } = storeToRefs(authStore);
 
 /** Navigation visible to every authenticated staff member. */
 const primaryItems = [
@@ -40,6 +40,7 @@ const primaryItems = [
     aria-label="Primary navigation"
   >
     <div class="border-b px-5 py-6" :style="{ borderColor: 'var(--color-border-default)' }">
+      <img v-if="logoUrl" :src="logoUrl" alt="" class="mb-4 h-12 max-w-full object-contain object-left" />
       <p class="font-mono text-[0.65rem] uppercase tracking-[0.24em] text-[var(--color-text-tertiary)]">
         Staff support
       </p>
