@@ -109,6 +109,32 @@ pub enum CommentVisibility {
     Internal,
 }
 
+/// String conversion for persisted ticket comment visibility values.
+impl CommentVisibility {
+    /// Returns the stable database and API spelling for this visibility.
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Public => "public",
+            Self::Internal => "internal",
+        }
+    }
+}
+
+/// Strictly parses a comment visibility without inherited aliases.
+impl FromStr for CommentVisibility {
+    /// Static parse failure returned for unsupported visibility values.
+    type Err = &'static str;
+
+    /// Converts one exact database or API spelling into its visibility.
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
+            "public" => Ok(Self::Public),
+            "internal" => Ok(Self::Internal),
+            _ => Err("unsupported comment visibility"),
+        }
+    }
+}
+
 /// Stable public ticket record shared by persistence and API layers.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Ticket {
@@ -124,10 +150,39 @@ pub struct Ticket {
     pub requester_id: Uuid,
     /// Technician currently responsible for the ticket.
     pub assignee_id: Option<Uuid>,
+    /// Administrator-configured category for the ticket.
+    pub category_id: Option<Uuid>,
     /// Current lifecycle state.
     pub status: TicketStatus,
     /// Current operator-assigned priority.
     pub priority: TicketPriority,
+    /// UTC creation timestamp.
+    pub created_at: String,
+    /// UTC timestamp of the most recent ticket mutation.
+    pub updated_at: String,
+    /// UTC timestamp when the ticket most recently became resolved.
+    pub resolved_at: Option<String>,
+    /// UTC timestamp when the ticket most recently became closed.
+    pub closed_at: Option<String>,
+}
+
+/// One persisted public comment or staff-only internal note.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TicketComment {
+    /// Stable comment identifier.
+    pub id: Uuid,
+    /// Parent ticket identifier.
+    pub ticket_id: Uuid,
+    /// Account that authored the entry.
+    pub author_id: Uuid,
+    /// Plain-text conversation body.
+    pub body: String,
+    /// Requester or staff visibility boundary.
+    pub visibility: CommentVisibility,
+    /// UTC creation timestamp.
+    pub created_at: String,
+    /// UTC timestamp of the most recent comment mutation.
+    pub updated_at: String,
 }
 
 /// Centralized pure policy used by later persistence and route implementations.
@@ -156,6 +211,28 @@ impl TicketPolicy {
             TicketStatus::Resolved => role.can_administer() || is_requester,
             TicketStatus::Closed => role.can_administer(),
             _ => false,
+        }
+    }
+
+    /// Returns whether staff may apply one explicit lifecycle transition.
+    pub const fn can_staff_transition(
+        role: Role,
+        current: TicketStatus,
+        next: TicketStatus,
+    ) -> bool {
+        if !role.can_work_tickets() {
+            return false;
+        }
+        if current as u8 == next as u8 {
+            return true;
+        }
+        match current {
+            TicketStatus::New => true,
+            TicketStatus::Open | TicketStatus::WaitingOnRequester => {
+                !matches!(next, TicketStatus::New)
+            }
+            TicketStatus::Resolved => matches!(next, TicketStatus::Open | TicketStatus::Closed),
+            TicketStatus::Closed => role.can_administer() && matches!(next, TicketStatus::Open),
         }
     }
 }
