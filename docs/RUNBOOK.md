@@ -38,28 +38,35 @@ archives. Capacity depends on attachment use.
 
 ## 2. Verify the release
 
-For a packaged source release, place the archive and checksum file in an empty
-working directory, then run:
+Place the published operator archive and checksum file in an empty working
+directory, then run:
 
 ~~~sh runbook-check
 sha256sum --check local-it-desk-0.1.0.tar.gz.sha256
 tar --extract --gzip --file local-it-desk-0.1.0.tar.gz
 cd local-it-desk-0.1.0
+sha256sum --check SHA256SUMS
+jq -e '.version == "0.1.0" and (.image.digest | test("^sha256:[0-9a-f]{64}$"))' \
+  release/release-metadata.json
+docker compose config --quiet
 ~~~
 
-Expected result: sha256sum prints OK before extraction. Stop if the checksum
-fails, the archive came through an untrusted channel, or the version is not the
-one approved for the school.
+Expected result: both checksum commands print OK, the metadata check prints
+true, and Compose accepts the configuration. Stop if any command fails, the
+archive came through an untrusted channel, or the version is not the one
+approved for the school.
 
-Build the version-pinned local image supplied by this source release:
+Pull and inspect the digest-pinned application image supplied by the bundle:
 
 ~~~sh runbook-check
-docker build --tag local-it-desk:0.1.0 .
-docker image inspect local-it-desk:0.1.0 --format '{{.Id}} {{.Config.User}}'
+approved_image="$(jq -er '.image.immutable_reference' release/release-metadata.json)"
+test -n "$approved_image"
+docker pull "$approved_image"
+docker image inspect "$approved_image" --format '{{.Id}} {{.Config.User}}'
 ~~~
 
 Expected result: the configured user is 10001:10001. Do not deploy an image
-whose tag or digest differs from the approved release record.
+whose digest differs from the approved release metadata.
 
 ## 3. Evaluation startup
 
@@ -165,7 +172,7 @@ Use the sanitized support procedure in section 13.
 
 ## 7. Pinned update and pre-update backup
 
-Never update by using a floating image tag. Record the current version, create
+Never update by using a floating image tag. Record the current digest, create
 and verify a backup, copy it off host, then update one pinned image reference.
 Follow [Backup and Restore](BACKUP-RESTORE.md) through the off-host verification
 step before continuing.
@@ -177,10 +184,10 @@ render the new configuration:
 update_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 mkdir -p backups
 cp .env "backups/env-before-$update_stamp"
-read -r -p 'Approved versioned image reference: ' next_image
+read -r -p 'Approved digest-pinned image reference: ' next_image
 test -n "$next_image"
-if [[ ! "$next_image" =~ :[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  printf 'The image reference must end in a semantic-version tag.\n' >&2
+if [[ ! "$next_image" =~ @sha256:[0-9a-f]{64}$ ]]; then
+  printf 'The image reference must end in an immutable SHA-256 digest.\n' >&2
   exit 1
 fi
 awk -v image="$next_image" \

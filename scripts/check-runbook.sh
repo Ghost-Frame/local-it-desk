@@ -116,7 +116,7 @@ grep -Fqi 'not an accepted backup' docs/BACKUP-RESTORE.md || fail 'backup guide 
 grep -Fqi 'pre-restore safety backup' docs/RUNBOOK.md || fail 'runbook lacks the restore safety-backup contract'
 grep -Fqi 'Administrator recovery' docs/RUNBOOK.md || fail 'runbook lacks administrator recovery'
 grep -Fqi 'Image and data rollback' docs/RUNBOOK.md || fail 'runbook lacks rollback'
-grep -Fqi 'semantic-version tag' docs/RUNBOOK.md || fail 'runbook lacks a version-pinned update gate'
+grep -Fqi 'immutable SHA-256 digest' docs/RUNBOOK.md || fail 'runbook lacks a digest-pinned update gate'
 grep -Fqi 'Host migration and safe stop' docs/RUNBOOK.md || fail 'runbook lacks host migration'
 grep -Fqi 'Sanitized support bundle' docs/RUNBOOK.md || fail 'runbook lacks sanitized diagnostics'
 

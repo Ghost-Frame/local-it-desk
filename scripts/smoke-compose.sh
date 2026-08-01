@@ -5,6 +5,10 @@ set -euo pipefail
 # Repository root resolved from this script rather than the caller directory.
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly repo_root
+# Deployment root containing the Compose and restore files under test.
+readonly deployment_root="${SMOKE_DEPLOYMENT_ROOT:-${repo_root}}"
+# Optional prebuilt native image used to test an extracted release bundle.
+readonly prebuilt_image="${SMOKE_PREBUILT_IMAGE:-}"
 # Container CLI providing build, inspect, network, and Compose operations.
 readonly container_engine="${CONTAINER_ENGINE:-docker}"
 # Unique project name prevents reuse of developer or prior smoke state.
@@ -17,7 +21,7 @@ readonly base_url="http://127.0.0.1:${smoke_http_port}"
 evidence_dir="$(mktemp -d "${TMPDIR:-/tmp}/local-it-desk-smoke.XXXXXX")"
 readonly evidence_dir
 # Initial image reference used before the update exercise.
-readonly old_image="local-it-desk-smoke:0.1.0-${compose_project}"
+readonly old_image="${prebuilt_image:-local-it-desk-smoke:0.1.0-${compose_project}}"
 # Replacement image reference used during the update exercise.
 readonly new_image="local-it-desk-smoke:0.1.1-${compose_project}"
 # Fixed verified archive name stored inside only this project state volume.
@@ -26,7 +30,7 @@ readonly backup_filename='local-it-desk-smoke-backup.tar.gz'
 compose_command=(
   "${container_engine}" compose
   --project-name "${compose_project}"
-  --file "${repo_root}/compose.yaml"
+  --file "${deployment_root}/compose.yaml"
 )
 # Tracks whether Compose resources were created and should be stopped on exit.
 compose_started='false'
@@ -176,15 +180,22 @@ done
   || fail 'SMOKE_HTTP_PORT must be numeric'
 [[ -x tests/e2e/local-only/verify.sh ]] \
   || fail 'local-only HTTP verifier is missing or not executable'
+[[ -x "${deployment_root}/scripts/restore-compose.sh" ]] \
+  || fail 'deployment restore wrapper is missing or not executable'
 chmod 0700 "${evidence_dir}"
 assert_unused_project
 
-# Podman must emit Docker image metadata so the healthcheck survives the build.
-build_options=()
-if [[ "$(basename "${container_engine}")" == 'podman' ]]; then
-  build_options+=(--format docker)
+# Podman must emit Docker image metadata so the healthcheck survives a source build.
+if [[ -z "${prebuilt_image}" ]]; then
+  build_options=()
+  if [[ "$(basename "${container_engine}")" == 'podman' ]]; then
+    build_options+=(--format docker)
+  fi
+  "${container_engine}" build "${build_options[@]}" --tag "${old_image}" .
+else
+  "${container_engine}" image inspect "${old_image}" >/dev/null \
+    || fail "prebuilt image is unavailable: ${old_image}"
 fi
-"${container_engine}" build "${build_options[@]}" --tag "${old_image}" .
 
 export COMPOSE_PROJECT_NAME="${compose_project}"
 export HTTP_BIND_ADDRESS='127.0.0.1'
@@ -219,7 +230,8 @@ LOCAL_IT_DESK_IMAGE="${new_image}" \
 HTTP_BIND_ADDRESS='127.0.0.1' \
 HTTP_PORT="${smoke_http_port}" \
 APP_ORIGIN="${base_url}" \
-  scripts/restore-compose.sh "${backup_filename}" --apply
+  bash -c 'cd "$1" && exec scripts/restore-compose.sh "$2" --apply' \
+    _ "${deployment_root}" "${backup_filename}"
 wait_for_health
 tests/e2e/local-only/verify.sh verify-restored "${base_url}" "${evidence_dir}"
 

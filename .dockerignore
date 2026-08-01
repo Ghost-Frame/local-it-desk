@@ -9,6 +9,8 @@ target
 frontend/node_modules
 frontend/dist
 frontend/.node-test-build
+dist
+release-files
 
 # Runtime data, credentials, certificates, and local configuration.
 .env
