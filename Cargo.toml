@@ -11,7 +11,7 @@ rust-version = "1.88"
 axum = { version = "0.8", features = ["macros", "multipart"] }
 tokio = { version = "1", features = ["full"] }
 tower = { version = "0.5", features = ["util"] }
-tower-http = { version = "0.6", features = ["trace", "fs"] }
+tower-http = { version = "0.7", features = ["trace", "fs"] }
 
 # Database.
 rusqlite = { version = "0.31", features = ["backup", "bundled", "uuid"] }
@@ -24,7 +24,6 @@ csv = "1"
 
 # Authentication and cryptography.
 argon2 = "0.5"
-password-hash = { version = "0.5", features = ["getrandom"] }
 sha2 = "0.10"
 subtle = "2"
 

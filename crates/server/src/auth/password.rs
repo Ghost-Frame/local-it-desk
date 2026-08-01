@@ -3,7 +3,6 @@
 use argon2::Argon2;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
 use base64::Engine;
-use password_hash::rand_core::OsRng;
 
 use crate::error::{AppError, AppResult};
 
@@ -48,7 +47,10 @@ pub fn validate_password(password: &str) -> AppResult<()> {
 /// Hashes a validated password with Argon2id and a fresh random salt.
 pub fn hash_password(password: &str) -> AppResult<String> {
     validate_password(password)?;
-    let salt = SaltString::generate(&mut OsRng);
+    let mut salt_bytes = [0_u8; 16];
+    rand::fill(&mut salt_bytes);
+    let salt = SaltString::encode_b64(&salt_bytes)
+        .map_err(|error| AppError::Internal(format!("salt encoding failed: {error}")))?;
     Argon2::default()
         .hash_password(password.as_bytes(), &salt)
         .map(|hash| hash.to_string())
