@@ -59,10 +59,12 @@ fi
   test ! -e /app/package.json
   test ! -e /root/.cargo
   test ! -e /root/.cache
-  test -w /data
-  test -w /attachments
-  test -w /branding
-  test -w /backups
+  test -w /state
+  test -w /state/current
+  test -w /state/current/data
+  test -w /state/current/attachments
+  test -w /state/current/branding
+  test -w /state/backups
   test ! -w /app
 '
 

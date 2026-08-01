@@ -30,7 +30,9 @@ RUN apt-get update \
     && groupadd --gid 10001 localdesk \
     && useradd --uid 10001 --gid 10001 --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin localdesk \
     && install -d -o root -g root -m 0755 /app \
-    && install -d -o 10001 -g 10001 -m 0750 /data /attachments /branding /backups
+    && install -d -o 10001 -g 10001 -m 0750 /state \
+    && install -d -o 10001 -g 10001 -m 0750 /state/current /state/backups \
+    && install -d -o 10001 -g 10001 -m 0750 /state/current/data /state/current/attachments /state/current/branding
 
 COPY --from=rust-builder --chown=root:root /workspace/target/release/local-it-desk /app/local-it-desk
 COPY --from=rust-builder --chown=root:root /workspace/target/release/local-it-desk-admin /app/local-it-desk-admin
@@ -39,9 +41,9 @@ COPY --from=frontend-builder --chown=root:root /workspace/frontend/dist/ /app/fr
 
 ENV LISTEN_ADDR="0.0.0.0:3000" \
     APP_ORIGIN="http://localhost:8080" \
-    DATABASE_PATH="/data/local-it-desk.db" \
-    UPLOAD_DIR="/attachments" \
-    BRANDING_DIR="/branding" \
+    DATABASE_PATH="/state/current/data/local-it-desk.db" \
+    UPLOAD_DIR="/state/current/attachments" \
+    BRANDING_DIR="/state/current/branding" \
     SERVE_FRONTEND="true" \
     FRONTEND_DIR="/app/frontend" \
     HEALTHCHECK_ADDR="127.0.0.1:3000"

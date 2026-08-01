@@ -16,3 +16,5 @@ pub mod error;
 pub mod models;
 /// HTTP route construction and retained route families.
 pub mod routes;
+/// Process-lifetime lock that excludes unsafe offline restore operations.
+pub mod runtime_lock;

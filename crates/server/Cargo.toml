@@ -41,6 +41,7 @@ subtle.workspace = true
 flate2.workspace = true
 tar.workspace = true
 tempfile.workspace = true
+fs2.workspace = true
 
 [dev-dependencies]
 reqwest = { version = "0.12", features = ["json", "rustls-tls"], default-features = false }

@@ -18,6 +18,9 @@ async fn main() {
     config
         .prepare_runtime_directories()
         .expect("failed to prepare runtime directories");
+    let _runtime_lock =
+        local_it_desk_server::runtime_lock::acquire_runtime_lock(&config.database_path)
+            .expect("another Local IT Desk process is already using this database");
 
     let pool = local_it_desk_server::db::create_pool(&config.database_path);
     let connection = pool.get().await.expect("failed to get database connection");

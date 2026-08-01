@@ -1,7 +1,7 @@
 //! Consistent SQLite snapshots packaged with referenced files and checksums.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::fs::{self, File};
+use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, Read, Seek, SeekFrom, Write};
 use std::path::{Component, Path, PathBuf};
 use std::time::Duration;
@@ -11,14 +11,16 @@ use flate2::Compression;
 use flate2::bufread::GzDecoder;
 use flate2::write::GzEncoder;
 use rusqlite::backup::Backup;
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection, ErrorCode, OpenFlags};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use tar::{Archive, Builder, EntryType, Header};
 use tempfile::{Builder as TempBuilder, NamedTempFile};
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::db::migrations::SCHEMA_VERSION;
+use crate::runtime_lock::{RuntimeLockError, acquire_runtime_lock};
 
 /// Version of the archive layout and manifest contract.
 pub const ARCHIVE_FORMAT_VERSION: u32 = 1;
@@ -87,6 +89,30 @@ pub struct VerificationSummary {
     pub schema_version: u32,
 }
 
+/// Selected restore behavior after complete validation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RestoreMode {
+    /// Report a verified plan without creating or renaming anything.
+    DryRun,
+    /// Create safety artifacts and atomically activate restored data.
+    Apply,
+}
+
+/// Non-secret result returned after a restore dry-run or activation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RestoreSummary {
+    /// Mode that was fully completed.
+    pub mode: RestoreMode,
+    /// Number of manifest payloads verified.
+    pub file_count: usize,
+    /// Aggregate verified uncompressed payload bytes.
+    pub payload_bytes: u64,
+    /// Verified pre-restore archive retained outside the active generation.
+    pub pre_restore_backup: Option<PathBuf>,
+    /// Previous active generation retained after successful activation.
+    pub quarantine: Option<PathBuf>,
+}
+
 /// Safe failures from backup creation and streaming verification.
 #[derive(Debug, Error)]
 pub enum BackupError {
@@ -122,6 +148,15 @@ pub enum BackupError {
     /// The archive violates the versioned structure or integrity contract.
     #[error("backup archive is invalid: {0}")]
     InvalidArchive(String),
+    /// The explicit active generation does not satisfy the restore layout.
+    #[error("restore target is invalid: {0}")]
+    InvalidRestoreTarget(String),
+    /// A running application or another writer makes replacement unsafe.
+    #[error("restore requires the Local IT Desk application and database writers to be stopped")]
+    ApplicationRunning,
+    /// Activation could not complete or roll back cleanly.
+    #[error("restore activation failed: {0}")]
+    Activation(String),
 }
 
 /// Open payload handle paired with immutable archive metadata.
@@ -318,6 +353,332 @@ pub fn verify_backup(archive_path: &Path) -> Result<VerificationSummary, BackupE
         payload_bytes,
         schema_version: manifest.schema_version,
     })
+}
+
+/// Verifies and optionally activates one archive against an explicit generation root.
+pub fn restore_backup(
+    archive_path: &Path,
+    target_root: &Path,
+    mode: RestoreMode,
+) -> Result<RestoreSummary, BackupError> {
+    let verification = verify_backup(archive_path)?;
+    let layout = RestoreLayout::validate(target_root)?;
+    if mode == RestoreMode::DryRun {
+        return Ok(RestoreSummary {
+            mode,
+            file_count: verification.file_count,
+            payload_bytes: verification.payload_bytes,
+            pre_restore_backup: None,
+            quarantine: None,
+        });
+    }
+
+    let _runtime_lock = acquire_runtime_lock(&layout.database).map_err(|error| match error {
+        RuntimeLockError::AlreadyHeld => BackupError::ApplicationRunning,
+        RuntimeLockError::Io(error) => BackupError::Io(error),
+    })?;
+    let write_guard = begin_restore_write_guard(&layout.database)?;
+    let operation_id = Uuid::new_v4();
+    let timestamp = Utc::now().format("%Y%m%dT%H%M%SZ");
+    let pre_restore_backup = layout
+        .backups
+        .join(format!("pre-restore-{timestamp}-{operation_id}.tar.gz"));
+    create_backup(
+        &layout.database,
+        &layout.attachments,
+        &layout.branding,
+        &pre_restore_backup,
+    )?;
+    verify_backup(&pre_restore_backup)?;
+
+    let staging = layout
+        .parent
+        .join(format!(".restore-{timestamp}-{operation_id}"));
+    let quarantine = layout
+        .parent
+        .join(format!(".quarantine-{timestamp}-{operation_id}"));
+    if staging.exists() || quarantine.exists() {
+        return Err(BackupError::InvalidRestoreTarget(
+            "generated staging or quarantine path is already occupied".to_string(),
+        ));
+    }
+    create_generation(&staging)?;
+    let manifest = extract_verified_archive(archive_path, &staging)?;
+    verify_backup(archive_path)?;
+    validate_restored_generation(&staging, &manifest)?;
+    let _restored_runtime_lock = acquire_runtime_lock(&staging.join(DATABASE_ARCHIVE_PATH))
+        .map_err(|error| match error {
+            RuntimeLockError::AlreadyHeld => BackupError::ApplicationRunning,
+            RuntimeLockError::Io(error) => BackupError::Io(error),
+        })?;
+
+    write_guard.execute_batch("ROLLBACK")?;
+    drop(write_guard);
+    fs::rename(&layout.target, &quarantine)?;
+    if let Err(activation_error) = fs::rename(&staging, &layout.target) {
+        return match fs::rename(&quarantine, &layout.target) {
+            Ok(()) => Err(BackupError::Activation(format!(
+                "staging activation failed and the original generation was restored: {activation_error}"
+            ))),
+            Err(rollback_error) => Err(BackupError::Activation(format!(
+                "staging activation failed ({activation_error}); automatic rollback also failed ({rollback_error})"
+            ))),
+        };
+    }
+
+    Ok(RestoreSummary {
+        mode,
+        file_count: verification.file_count,
+        payload_bytes: verification.payload_bytes,
+        pre_restore_backup: Some(pre_restore_backup),
+        quarantine: Some(quarantine),
+    })
+}
+
+/// Validated paths beneath one active generation and its persistent parent.
+struct RestoreLayout {
+    /// Exact active generation that may be quarantined.
+    target: PathBuf,
+    /// Same-filesystem state root containing generations and backups.
+    parent: PathBuf,
+    /// Existing SQLite database inside the active generation.
+    database: PathBuf,
+    /// Existing attachment directory inside the active generation.
+    attachments: PathBuf,
+    /// Existing branding directory inside the active generation.
+    branding: PathBuf,
+    /// Persistent sibling directory for verified safety archives.
+    backups: PathBuf,
+}
+
+/// Strict target layout validation that performs no mutation.
+impl RestoreLayout {
+    /// Resolves the exact active generation and rejects symlinks or broad roots.
+    fn validate(target: &Path) -> Result<Self, BackupError> {
+        let name = target.file_name().and_then(|name| name.to_str());
+        if name != Some("current") {
+            return Err(BackupError::InvalidRestoreTarget(
+                "target root must name the active 'current' generation".to_string(),
+            ));
+        }
+        require_non_symlink_directory(target, "active generation")?;
+        let parent = target.parent().ok_or_else(|| {
+            BackupError::InvalidRestoreTarget("active generation has no parent".to_string())
+        })?;
+        require_non_symlink_directory(parent, "state root")?;
+        let data = target.join("data");
+        let attachments = target.join("attachments");
+        let branding = target.join("branding");
+        let backups = parent.join("backups");
+        require_non_symlink_directory(&data, "data directory")?;
+        require_non_symlink_directory(&attachments, "attachments directory")?;
+        require_non_symlink_directory(&branding, "branding directory")?;
+        require_non_symlink_directory(&backups, "backup directory")?;
+        let database = data.join("local-it-desk.db");
+        require_regular_file(&database, "active database")?;
+        Ok(Self {
+            target: target.to_path_buf(),
+            parent: parent.to_path_buf(),
+            database,
+            attachments,
+            branding,
+            backups,
+        })
+    }
+}
+
+/// Acquires SQLite's immediate writer reservation after the process lock.
+fn begin_restore_write_guard(database: &Path) -> Result<Connection, BackupError> {
+    let connection = Connection::open_with_flags(database, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+    connection.busy_timeout(Duration::ZERO)?;
+    match connection.execute_batch("BEGIN IMMEDIATE") {
+        Ok(()) => Ok(connection),
+        Err(rusqlite::Error::SqliteFailure(error, _))
+            if matches!(
+                error.code,
+                ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked
+            ) =>
+        {
+            Err(BackupError::ApplicationRunning)
+        }
+        Err(error) => Err(BackupError::Database(error)),
+    }
+}
+
+/// Creates a new empty generation with restrictive required subdirectories.
+fn create_generation(path: &Path) -> Result<(), BackupError> {
+    fs::create_dir(path)?;
+    set_directory_permissions(path)?;
+    for child in ["data", "attachments", "branding"] {
+        let child_path = path.join(child);
+        fs::create_dir(&child_path)?;
+        set_directory_permissions(&child_path)?;
+    }
+    Ok(())
+}
+
+/// Applies owner-oriented permissions to one newly created generation directory.
+fn set_directory_permissions(path: &Path) -> Result<(), BackupError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(path, fs::Permissions::from_mode(0o750))?;
+    }
+    Ok(())
+}
+
+/// Extracts only manifest-listed regular files into one new staging generation.
+fn extract_verified_archive(
+    archive_path: &Path,
+    destination: &Path,
+) -> Result<BackupManifest, BackupError> {
+    let archive_file = File::open(archive_path)?;
+    let decoder = GzDecoder::new(BufReader::new(archive_file));
+    let mut archive = Archive::new(decoder);
+    let mut entries = archive.entries()?;
+    let mut manifest_entry = entries
+        .next()
+        .ok_or_else(|| BackupError::InvalidArchive("archive is empty".to_string()))??;
+    require_regular_entry(&manifest_entry, MANIFEST_PATH)?;
+    if normalized_archive_path(&manifest_entry)? != MANIFEST_PATH
+        || manifest_entry.size() > MAX_MANIFEST_BYTES
+    {
+        return Err(BackupError::InvalidArchive(
+            "manifest is missing from the first entry".to_string(),
+        ));
+    }
+    let mut manifest_bytes = Vec::with_capacity(manifest_entry.size() as usize);
+    manifest_entry.read_to_end(&mut manifest_bytes)?;
+    let manifest: BackupManifest = serde_json::from_slice(&manifest_bytes)?;
+    validate_manifest(&manifest)?;
+    let expected = manifest
+        .files
+        .iter()
+        .map(|file| (file.path.as_str(), file))
+        .collect::<BTreeMap<_, _>>();
+    let mut seen = BTreeSet::new();
+    for entry in entries {
+        let mut entry = entry?;
+        require_regular_entry(&entry, "restore payload")?;
+        let path = normalized_archive_path(&entry)?;
+        if !seen.insert(path.clone()) {
+            return Err(BackupError::InvalidArchive(format!(
+                "duplicate restore entry: {path}"
+            )));
+        }
+        let expected_file = expected.get(path.as_str()).ok_or_else(|| {
+            BackupError::InvalidArchive(format!("unexpected restore entry: {path}"))
+        })?;
+        if entry.size() != expected_file.size_bytes {
+            return Err(BackupError::InvalidArchive(format!(
+                "restore size mismatch: {path}"
+            )));
+        }
+        let output_path = destination.join(&path);
+        let output_parent = output_path.parent().ok_or_else(|| {
+            BackupError::InvalidArchive("restore entry has no parent".to_string())
+        })?;
+        require_non_symlink_directory(output_parent, "restore entry parent")?;
+        let mut output = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&output_path)?;
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            output.set_permissions(fs::Permissions::from_mode(0o600))?;
+        }
+        let (size_bytes, sha256) = copy_and_hash(&mut entry, &mut output, MAX_ENTRY_BYTES)?;
+        output.sync_all()?;
+        if size_bytes != expected_file.size_bytes || sha256 != expected_file.sha256 {
+            return Err(BackupError::InvalidArchive(format!(
+                "restore checksum mismatch: {path}"
+            )));
+        }
+    }
+    if seen.len() != expected.len() {
+        return Err(BackupError::InvalidArchive(
+            "restore archive is missing a manifest payload".to_string(),
+        ));
+    }
+    drop(manifest_entry);
+    Ok(manifest)
+}
+
+/// Copies and hashes one bounded restore entry in a single pass.
+fn copy_and_hash(
+    reader: &mut impl Read,
+    writer: &mut impl Write,
+    maximum: u64,
+) -> Result<(u64, String), BackupError> {
+    let mut hasher = Sha256::new();
+    let mut size_bytes = 0_u64;
+    let mut buffer = [0_u8; 64 * 1024];
+    loop {
+        let read = reader.read(&mut buffer)?;
+        if read == 0 {
+            break;
+        }
+        size_bytes = size_bytes
+            .checked_add(read as u64)
+            .ok_or_else(|| BackupError::InvalidArchive("restore size overflow".to_string()))?;
+        if size_bytes > maximum {
+            return Err(BackupError::InvalidArchive(
+                "restore payload exceeds the supported size".to_string(),
+            ));
+        }
+        writer.write_all(&buffer[..read])?;
+        hasher.update(&buffer[..read]);
+    }
+    Ok((size_bytes, lowercase_hex(&hasher.finalize())))
+}
+
+/// Verifies restored SQLite integrity, row counts, and referenced-file inventory.
+fn validate_restored_generation(
+    generation: &Path,
+    manifest: &BackupManifest,
+) -> Result<(), BackupError> {
+    let database = generation.join(DATABASE_ARCHIVE_PATH);
+    require_regular_file(&database, "restored database")?;
+    let connection = Connection::open_with_flags(&database, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+    let integrity: String = connection.query_row("PRAGMA integrity_check", [], |row| row.get(0))?;
+    if integrity != "ok" || read_schema_version(&connection)? != manifest.schema_version {
+        return Err(BackupError::InvalidArchive(
+            "restored database integrity or schema check failed".to_string(),
+        ));
+    }
+    if read_logical_counts(&connection)? != manifest.logical_counts {
+        return Err(BackupError::InvalidArchive(
+            "restored database logical counts do not match the manifest".to_string(),
+        ));
+    }
+    let expected_attachments = read_attachment_names(&connection)?
+        .into_iter()
+        .map(|name| format!("attachments/{name}"))
+        .collect::<BTreeSet<_>>();
+    let restored_attachments = manifest
+        .files
+        .iter()
+        .filter(|file| file.path.starts_with("attachments/"))
+        .map(|file| file.path.clone())
+        .collect::<BTreeSet<_>>();
+    if expected_attachments != restored_attachments {
+        return Err(BackupError::InvalidArchive(
+            "restored attachment inventory does not match the database".to_string(),
+        ));
+    }
+    let expected_branding = read_branding_name(&connection)?.map(|name| format!("branding/{name}"));
+    let restored_branding = manifest
+        .files
+        .iter()
+        .find(|file| file.path.starts_with("branding/"))
+        .map(|file| file.path.clone());
+    if expected_branding != restored_branding {
+        return Err(BackupError::InvalidArchive(
+            "restored branding inventory does not match the database".to_string(),
+        ));
+    }
+    Ok(())
 }
 
 /// Drains only bounded zero-filled tar terminator padding from the decoder.
@@ -563,13 +924,15 @@ fn validate_manifest(manifest: &BackupManifest) -> Result<(), BackupError> {
         ));
     }
     let mut paths = BTreeSet::new();
+    let mut branding_files = 0_usize;
     for file in &manifest.files {
         validate_archive_path(&file.path)?;
-        if file.path == MANIFEST_PATH || !paths.insert(file.path.as_str()) {
+        if !is_allowed_payload_path(&file.path) || !paths.insert(file.path.as_str()) {
             return Err(BackupError::InvalidArchive(
-                "manifest contains duplicate or reserved paths".to_string(),
+                "manifest contains duplicate or unsupported payload paths".to_string(),
             ));
         }
+        branding_files += usize::from(file.path.starts_with("branding/"));
         if file.size_bytes > MAX_ENTRY_BYTES
             || file.sha256.len() != 64
             || !file
@@ -586,6 +949,11 @@ fn validate_manifest(manifest: &BackupManifest) -> Result<(), BackupError> {
     if !paths.contains(DATABASE_ARCHIVE_PATH) {
         return Err(BackupError::InvalidArchive(
             "manifest does not contain the SQLite snapshot".to_string(),
+        ));
+    }
+    if branding_files > 1 {
+        return Err(BackupError::InvalidArchive(
+            "manifest contains more than one active branding file".to_string(),
         ));
     }
     const REQUIRED_COUNTS: [&str; 10] = [
@@ -680,6 +1048,16 @@ fn require_directory(path: &Path, label: &str) -> Result<(), BackupError> {
     Ok(())
 }
 
+/// Requires one restore directory to exist without following a symlink boundary.
+fn require_non_symlink_directory(path: &Path, label: &str) -> Result<(), BackupError> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|_| BackupError::InvalidRestoreTarget(label.to_string()))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(BackupError::InvalidRestoreTarget(label.to_string()));
+    }
+    Ok(())
+}
+
 /// Requires a database-stored filename to contain exactly one normal component.
 fn is_single_component(value: &str) -> bool {
     !value.is_empty()
@@ -688,6 +1066,17 @@ fn is_single_component(value: &str) -> bool {
             Path::new(value).components().collect::<Vec<_>>().as_slice(),
             [Component::Normal(_)]
         )
+}
+
+/// Restricts restore payloads to the database and single-component owned files.
+fn is_allowed_payload_path(value: &str) -> bool {
+    value == DATABASE_ARCHIVE_PATH
+        || value
+            .strip_prefix("attachments/")
+            .is_some_and(is_single_component)
+        || value
+            .strip_prefix("branding/")
+            .is_some_and(is_single_component)
 }
 
 /// Returns one normalized UTF-8 archive path after rejecting unsafe components.

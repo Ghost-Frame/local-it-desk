@@ -4,9 +4,11 @@ use std::io::{self, IsTerminal, Read};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use local_it_desk_server::admin_cli::{RecoveryError, reset_password};
-use local_it_desk_server::backup::{BackupError, create_backup, verify_backup};
+use local_it_desk_server::backup::{
+    BackupError, RestoreMode, create_backup, restore_backup, verify_backup,
+};
 
 /// Maximum redirected input accepted for two bounded password values.
 const MAX_INPUT_BYTES: u64 = 2_048;
@@ -51,12 +53,31 @@ enum Command {
         #[arg(long, value_name = "USERNAME")]
         username: String,
     },
+    /// Verify and optionally activate a backup through staging and quarantine.
+    Restore(RestoreArgs),
     /// Stream and verify every entry in one backup archive without extracting it.
     VerifyBackup {
         /// Existing backup archive to verify.
         #[arg(long, value_name = "FILE")]
         archive: PathBuf,
     },
+}
+
+/// Mutually exclusive restore mode and explicit source and target paths.
+#[derive(Args)]
+struct RestoreArgs {
+    /// Existing verified backup archive to restore.
+    #[arg(long, value_name = "FILE")]
+    archive: PathBuf,
+    /// Existing active generation directory named current.
+    #[arg(long, value_name = "PATH")]
+    target_root: PathBuf,
+    /// Verify and report the restore plan without any mutation.
+    #[arg(long, required_unless_present = "apply", conflicts_with = "apply")]
+    dry_run: bool,
+    /// Create a safety backup, stage, validate, quarantine, and activate.
+    #[arg(long, required_unless_present = "dry_run", conflicts_with = "dry_run")]
+    apply: bool,
 }
 
 /// Dispatches one selected maintenance operation and returns a classified failure.
@@ -84,6 +105,35 @@ fn run(cli: Cli) -> Result<(), CliFailure> {
                 "Administrator '{}' recovered; {} active session(s) revoked. A password change is required at next login.",
                 result.username, result.revoked_sessions
             );
+            Ok(())
+        }
+        Command::Restore(arguments) => {
+            let mode = if arguments.apply {
+                RestoreMode::Apply
+            } else {
+                RestoreMode::DryRun
+            };
+            let summary = restore_backup(&arguments.archive, &arguments.target_root, mode)
+                .map_err(CliFailure::Restore)?;
+            match mode {
+                RestoreMode::DryRun => println!(
+                    "Restore dry-run verified: {} payload file(s), {} byte(s); target unchanged.",
+                    summary.file_count, summary.payload_bytes
+                ),
+                RestoreMode::Apply => println!(
+                    "Restore applied: pre-restore backup '{}'; previous generation quarantined at '{}'.",
+                    summary
+                        .pre_restore_backup
+                        .as_deref()
+                        .expect("apply result includes pre-restore backup")
+                        .display(),
+                    summary
+                        .quarantine
+                        .as_deref()
+                        .expect("apply result includes quarantine")
+                        .display()
+                ),
+            }
             Ok(())
         }
         Command::VerifyBackup { archive } => {
@@ -148,6 +198,8 @@ enum CliFailure {
     Operation(String),
     /// Backup creation or archive verification failed safely.
     Backup(String),
+    /// Restore validation, exclusion, staging, or activation failed safely.
+    Restore(BackupError),
 }
 
 /// Maps recovery-domain failures into stable command failure classes.
@@ -201,6 +253,10 @@ fn main() -> ExitCode {
         Err(CliFailure::Backup(message)) => {
             eprintln!("Backup error: {message}");
             ExitCode::from(7)
+        }
+        Err(CliFailure::Restore(error)) => {
+            eprintln!("Restore error: {error}");
+            ExitCode::from(8)
         }
     }
 }

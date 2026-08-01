@@ -41,9 +41,11 @@ assert_json "${evaluation_json}" '.services.app.image | test(":[0-9]+\\.[0-9]+\\
 assert_json "${evaluation_json}" '.services.app.ports | length == 1 and .[0].target == 3000 and .[0].published == "8080"' 'evaluation profile must publish only HTTP port 8080 to app port 3000'
 assert_json "${evaluation_json}" '.services.app.environment.COOKIE_SECURE == "false" and (.services.app.environment.APP_ORIGIN | startswith("http://"))' 'evaluation cookies and origin must use the explicit HTTP contract'
 assert_json "${evaluation_json}" '.services.app.read_only == true and (.services.app.cap_drop | index("ALL")) and (.services.app.security_opt | index("no-new-privileges:true"))' 'application service must be read-only with all capabilities dropped and no-new-privileges'
-assert_json "${evaluation_json}" '[.services.app.volumes[].target] | sort == ["/attachments", "/backups", "/branding", "/data"]' 'all four persistent application paths must be mounted'
+assert_json "${evaluation_json}" '[.services.app.volumes[] | {source, target}] == [{"source":"desk-state","target":"/state"}]' 'one state volume must contain active, backup, staging, and quarantine generations'
+assert_json "${evaluation_json}" '.volumes | keys == ["desk-state"]' 'only the atomic state volume may persist application data'
+assert_json "${evaluation_json}" '.services.app.environment.DATABASE_PATH == "/state/current/data/local-it-desk.db" and .services.app.environment.UPLOAD_DIR == "/state/current/attachments" and .services.app.environment.BRANDING_DIR == "/state/current/branding"' 'application paths must resolve beneath the active current generation'
 assert_json "${evaluation_json}" '.services.app.healthcheck.test | index("/app/local-it-desk-healthcheck")' 'application healthcheck is required'
-assert_json "${evaluation_json}" '.services.app.logging.driver == "local" and .services.app.logging.options["max-size"] == "10m" and .services.app.logging.options["max-file"] == "3"' 'application logs must be locally bounded'
+assert_json "${evaluation_json}" '.services.app.logging.driver == "json-file" and .services.app.logging.options["max-size"] == "10m" and .services.app.logging.options["max-file"] == "3"' 'application logs must use cross-engine rotation'
 
 assert_json "${school_json}" '.services | keys == ["app", "caddy"]' 'school profile must contain only app and Caddy'
 assert_json "${school_json}" '(.services.app.ports // []) | length == 0' 'school profile must remove every application host port'
@@ -57,5 +59,16 @@ assert_json "${school_json}" '[.services[] | (.privileged // false)] | all(. == 
 assert_json "${school_json}" '[.services[] | (.network_mode // "")] | all(. != "host")' 'host networking is forbidden'
 assert_json "${school_json}" '[.services[].volumes[]?.source // ""] | all(contains("docker.sock") | not)' 'Docker socket mounts are forbidden'
 assert_json "${school_json}" '[.services[] | has("healthcheck")] | all' 'every school service must have a healthcheck'
+
+require_file scripts/restore-compose.sh
+[[ -x scripts/restore-compose.sh ]]
+bash -n scripts/restore-compose.sh
+grep -Fq -- 'stop app' scripts/restore-compose.sh
+grep -Fq -- '--target-root /state/current' scripts/restore-compose.sh
+grep -Fq -- 'Destination "/state"' scripts/restore-compose.sh
+if grep -Eq '(compose down|volume (rm|prune)|docker\.sock)' scripts/restore-compose.sh; then
+  printf 'Compose contract failed: restore wrapper contains a forbidden broad or privileged operation.\n' >&2
+  exit 1
+fi
 
 printf 'Compose contracts passed.\n'
