@@ -5,17 +5,18 @@ administrator account. Run commands from the extracted release directory in a
 Bash shell. Keep that directory, its .env file, and its certs directory
 restricted to the operator.
 
-The deployment pattern is PROVEN-IN-CONTEXT: one application container, one
-reverse proxy for school HTTPS, and one named state volume. Its main failure
-mode is losing the only host and its volume. A verified off-host backup is the
-recovery path.
+The deployment pattern is PROVEN-IN-CONTEXT: one isolated application
+container, one reverse proxy at the network edge, and one named state volume.
+Its main failure mode is losing the only host and its volume. A verified
+off-host backup is the recovery path.
 
 ## 1. Prerequisites
 
-Use a supported Linux host with Docker Engine and the Compose plugin for the
-school deployment. Give the host a stable LAN address and DNS name. Install
-host security updates, enable the host firewall, and allow HTTPS only from
-school-managed networks.
+Use a supported Linux host with Docker Engine and Docker Compose 2.33.1 or
+newer for the school deployment. The deployment uses Compose gateway priority
+to keep the application isolated behind its edge proxy. Give the host a stable
+LAN address and DNS name. Install host security updates, enable the host
+firewall, and allow HTTPS only from school-managed networks.
 
 Docker Desktop can run an evaluation on Windows, macOS, or Linux. On Windows,
 use a WSL 2 Bash shell with Docker Desktop integration. Keep Docker Desktop
@@ -85,7 +86,7 @@ docker compose --project-name local-it-desk-evaluation ps
 curl --fail --silent --show-error http://127.0.0.1:8080/health/ready
 ~~~
 
-Expected result: app becomes healthy and the final command prints
+Expected result: app and caddy become healthy and the final command prints
 {"status":"ready"}. Open http://localhost:8080/setup and create a test-only
 administrator. First setup closes atomically after the first administrator is
 created.

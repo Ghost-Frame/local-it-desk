@@ -77,7 +77,7 @@ finish_smoke() {
         "${compose_command[@]}" logs --no-color --tail 120 2>&1 || true
       } | redact_stream | tee "${evidence_dir}/failure.log" >&2
     fi
-    "${compose_command[@]}" stop app >/dev/null 2>&1 || true
+    "${compose_command[@]}" stop caddy app >/dev/null 2>&1 || true
   fi
   if ! sanitize_evidence; then
     printf 'Smoke evidence redaction failed.\n' >&2
@@ -93,23 +93,24 @@ finish_smoke() {
 }
 trap finish_smoke EXIT
 
-# Waits until the exact application container reports healthy.
+# Waits until one exact Compose service container reports healthy.
 wait_for_health() {
+  local service_name="$1"
   local container_id
   local health_state='starting'
-  container_id="$("${compose_command[@]}" ps --quiet app)"
-  [[ -n "${container_id}" ]] || fail 'Compose did not create the application container'
+  container_id="$("${compose_command[@]}" ps --quiet "${service_name}")"
+  [[ -n "${container_id}" ]] || fail "Compose did not create the ${service_name} container"
   for _attempt in $(seq 1 60); do
     health_state="$("${container_engine}" inspect "${container_id}" --format '{{.State.Health.Status}}')"
     if [[ "${health_state}" == 'healthy' ]]; then
       return 0
     fi
     if [[ "${health_state}" == 'unhealthy' ]]; then
-      fail 'application container became unhealthy'
+      fail "${service_name} container became unhealthy"
     fi
     sleep 1
   done
-  fail "application health timed out in state ${health_state}"
+  fail "${service_name} health timed out in state ${health_state}"
 }
 
 # Proves the application has only one internal network and no runtime egress.
@@ -152,6 +153,9 @@ assert_unused_project() {
   if "${container_engine}" network inspect "${compose_project}_desk-internal" >/dev/null 2>&1; then
     fail "smoke project already has a network: ${compose_project}"
   fi
+  if "${container_engine}" network inspect "${compose_project}_desk-ingress" >/dev/null 2>&1; then
+    fail "smoke project already has an ingress network: ${compose_project}"
+  fi
 }
 
 # Recreates only the application with one explicit image reference and verifies it.
@@ -161,7 +165,7 @@ activate_image() {
   local actual_image
   export LOCAL_IT_DESK_IMAGE="${image_ref}"
   "${compose_command[@]}" up --detach --no-deps app >/dev/null
-  wait_for_health
+  wait_for_health app
   container_id="$("${compose_command[@]}" ps --quiet app)"
   actual_image="$("${container_engine}" inspect "${container_id}" --format '{{.Config.Image}}')"
   [[ "${actual_image}" == "${image_ref}" || "${actual_image}" == "localhost/${image_ref}" ]] \
@@ -202,9 +206,10 @@ export HTTP_BIND_ADDRESS='127.0.0.1'
 export HTTP_PORT="${smoke_http_port}"
 export APP_ORIGIN="${base_url}"
 export LOCAL_IT_DESK_IMAGE="${old_image}"
-"${compose_command[@]}" up --detach app >/dev/null
+"${compose_command[@]}" up --detach app caddy >/dev/null
 compose_started='true'
-wait_for_health
+wait_for_health app
+wait_for_health caddy
 assert_runtime_isolation
 assert_isolated_state_volume
 
@@ -232,14 +237,14 @@ HTTP_PORT="${smoke_http_port}" \
 APP_ORIGIN="${base_url}" \
   bash -c 'cd "$1" && exec scripts/restore-compose.sh "$2" --apply' \
     _ "${deployment_root}" "${backup_filename}"
-wait_for_health
+wait_for_health app
 tests/e2e/local-only/verify.sh verify-restored "${base_url}" "${evidence_dir}"
 
 activate_image "${old_image}"
 tests/e2e/local-only/verify.sh verify-restored "${base_url}" "${evidence_dir}"
 "${compose_command[@]}" stop app >/dev/null
 "${compose_command[@]}" up --detach app >/dev/null
-wait_for_health
+wait_for_health app
 tests/e2e/local-only/verify.sh verify-restored "${base_url}" "${evidence_dir}"
 
 printf 'LOCAL_ONLY_SMOKE_OK\n'

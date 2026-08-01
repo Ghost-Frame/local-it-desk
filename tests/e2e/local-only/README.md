@@ -21,7 +21,8 @@ CONTAINER_ENGINE=podman bash scripts/smoke-compose.sh
 The harness builds the release image before the observation window. It then
 checks that the application has exactly one internal Compose network, where
 external egress is unavailable, and completes all runtime requests over the
-loopback-published application port.
+loopback-published Caddy edge. Caddy spans the internal and ingress networks;
+the application itself never joins the ingress network.
 
 The journey covers first administrator setup, named requester creation, forced
 password replacement, a ticket, attachment, public and internal comments,
@@ -37,11 +38,11 @@ LOCAL_ONLY_SMOKE_OK
 port is unavailable. `SMOKE_PROJECT_NAME` may select an explicit unique project
 name using lowercase letters, digits, underscores, and hyphens.
 
-The script stops its application container but intentionally retains the exact
-smoke project, state volume, image tags, and evidence directory. This preserves
-the demonstrated backup, restored state, and quarantine generation for direct
-inspection. Removal is a separate explicit operator decision after those
-artifacts are no longer needed.
+The script stops its application and edge containers but intentionally retains
+the exact smoke project, state volume, image tags, and evidence directory. This
+preserves the demonstrated backup, restored state, and quarantine generation
+for direct inspection. Removal is a separate explicit operator decision after
+those artifacts are no longer needed.
 
 `verify.sh` is the focused HTTP client. Its `seed`, `verify`, `mutate`, and
 `verify-restored` phases are orchestrated by the top-level script. Its embedded

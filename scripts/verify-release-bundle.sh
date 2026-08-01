@@ -47,7 +47,7 @@ fail() {
 [[ "${version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
   || fail 'archive version is not strict semantic versioning'
 
-for required_command in realpath sha256sum tar find sort jq rg; do
+for required_command in realpath sha256sum tar find sort jq grep; do
   command -v "${required_command}" >/dev/null \
     || fail "required command is unavailable: ${required_command}"
 done
@@ -133,7 +133,7 @@ jq -e \
 readonly immutable_image="docker.io/ghostframe/local-it-desk@${image_digest}"
 grep -Fq -- "\${LOCAL_IT_DESK_IMAGE:-${immutable_image}}" "${bundle_root}/compose.yaml" \
   || fail 'Compose does not contain the metadata image digest'
-if rg -n 'docker\.io/ghostframe/local-it-desk:(latest|[0-9]+\.[0-9]+\.[0-9]+)' "${bundle_root}/compose.yaml"; then
+if grep -En 'docker\.io/ghostframe/local-it-desk:(latest|[0-9]+\.[0-9]+\.[0-9]+)' "${bundle_root}/compose.yaml"; then
   fail 'Compose contains a mutable production image reference'
 fi
 
@@ -141,7 +141,7 @@ jq -e '.spdxVersion | startswith("SPDX-")' "${bundle_root}/release/sbom.spdx.jso
   || fail 'software bill of materials is not SPDX JSON'
 jq -e 'type == "object"' "${bundle_root}/release/provenance.json" >/dev/null \
   || fail 'provenance is not a JSON object'
-if rg -n 'VERSION|CHANGE_ME|REPLACE_ME|YOUR_' \
+if grep -Ern 'VERSION|CHANGE_ME|REPLACE_ME|YOUR_' \
   "${bundle_root}/.env.example" \
   "${bundle_root}/compose.yaml" \
   "${bundle_root}/compose.https.yaml" \
