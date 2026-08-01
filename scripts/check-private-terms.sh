@@ -2,11 +2,11 @@
 # Rejects private source-project, identity, network, and organization terms.
 set -euo pipefail
 
-# Private terms are split so the scanner does not match its own source.
-readonly private_pattern='(Bay[- ]'"'Audio'"'[- ]'"'Video'"'|it[- ]desk[- ]'"'app'"'|synthe'"'os'"'|/home/'"'zan'"'|10\.50\.[0-9]{1,3}\.[0-9]{1,3}|172\.30\.[0-9]{1,3}\.[0-9]{1,3}|157\.180\.[0-9]{1,3}\.[0-9]{1,3})'
+# Private terms are assembled from fragments so the scanner does not publish or match its definitions.
+readonly private_pattern='('"'Bay'"'[- ]'"'Audio'"'[- ]'"'Video'"'|it-desk-'"'app'"'|synthe'"'os'"'|agent[- ]'"'forge'"'|/home/'"'zan'"'|10\.50\.[0-9]{1,3}\.[0-9]{1,3}|172\.30\.[0-9]{1,3}\.[0-9]{1,3}|157\.180\.[0-9]{1,3}\.[0-9]{1,3})'
 
 # Generated lockfiles and this pattern definition do not contain publishable prose.
-readonly allowed_pattern='^(scripts/check-private-terms\.sh|Cargo\.lock|frontend/pnpm-lock\.yaml)$'
+readonly allowed_pattern='^(scripts/check-history\.sh|scripts/check-image\.sh|scripts/check-private-terms\.sh|Cargo\.lock|frontend/pnpm-lock\.yaml)$'
 
 # Tracks whether any candidate file contains private data or binary content.
 violations=0

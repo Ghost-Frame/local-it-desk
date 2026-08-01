@@ -21,7 +21,7 @@
 *.pem
 *.key
 
-# Local tooling and editor state
+# Local editor state
 /.idea/
 /.vscode/
 *.swp

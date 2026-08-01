@@ -17,13 +17,14 @@ COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ ./crates/
 RUN cargo build --release --locked --bins
 
-FROM debian:12.11-slim AS runtime
+FROM debian:12.12-slim AS runtime
 
 LABEL org.opencontainers.image.title="Local IT Desk" \
       org.opencontainers.image.description="Local-network help desk for named staff accounts" \
       org.opencontainers.image.version="0.1.0"
 
 RUN apt-get update \
+    && apt-get upgrade --yes \
     && apt-get install --yes --no-install-recommends ca-certificates \
     && apt-get clean \
     && find /var/lib/apt/lists -type f -delete \
