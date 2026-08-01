@@ -152,7 +152,7 @@ pub enum BackupError {
     #[error("restore target is invalid: {0}")]
     InvalidRestoreTarget(String),
     /// A running application or another writer makes replacement unsafe.
-    #[error("restore requires the Local IT Desk application and database writers to be stopped")]
+    #[error("restore requires every database writer to be stopped")]
     ApplicationRunning,
     /// Activation could not complete or roll back cleanly.
     #[error("restore activation failed: {0}")]
