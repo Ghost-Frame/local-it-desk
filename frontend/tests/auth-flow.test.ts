@@ -120,7 +120,7 @@ test("API keeps session cookies implicit and adds in-memory CSRF to unsafe reque
     await client.createTicket({
       title: "Projector is offline",
       description: "The classroom projector does not power on.",
-      category_id: null,
+      category_id: "general-category",
       priority: "normal",
     });
     const loginHeaders = new Headers(requests[0]?.headers);

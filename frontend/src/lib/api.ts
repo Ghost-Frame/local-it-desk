@@ -16,6 +16,7 @@ import type {
   SetupRequest,
   Ticket,
   TicketComment,
+  TicketPage,
   UpdateTicketRequest,
   UpdateUserRequest,
   User,
@@ -42,7 +43,12 @@ export class ApiError extends Error {
 function queryString(params: ListTicketsParams): string {
   const values = new URLSearchParams();
   if (params.status) values.set("status", params.status);
+  if (params.priority) values.set("priority", params.priority);
   if (params.category_id) values.set("category_id", params.category_id);
+  if (params.assignee_id) values.set("assignee_id", params.assignee_id);
+  if (params.search) values.set("search", params.search);
+  if (params.cursor) values.set("cursor", params.cursor);
+  if (params.page_size) values.set("page_size", String(params.page_size));
   const encoded = values.toString();
   return encoded ? `?${encoded}` : "";
 }
@@ -176,7 +182,7 @@ export class ApiClient {
   }
 
   /** Lists tickets visible to the current account. */
-  async listTickets(params: ListTicketsParams = {}): Promise<Ticket[]> {
+  async listTickets(params: ListTicketsParams = {}): Promise<TicketPage> {
     return this.request("GET", `/tickets${queryString(params)}`);
   }
 
@@ -208,6 +214,35 @@ export class ApiClient {
   /** Lists attachments authorized through the parent ticket. */
   async listTicketAttachments(ticketId: string): Promise<Attachment[]> {
     return this.request("GET", `/tickets/${ticketId}/attachments`);
+  }
+
+  /** Streams one bounded file to an authorized ticket or conversation parent. */
+  async uploadAttachment(
+    parentKind: Attachment["parent_kind"],
+    parentId: string,
+    file: File,
+  ): Promise<Attachment> {
+    const form = new FormData();
+    form.set("parent_kind", parentKind);
+    form.set("parent_id", parentId);
+    form.set("file", file, file.name);
+    const headers = new Headers();
+    if (this.csrfToken) headers.set("X-CSRF-Token", this.csrfToken);
+    const response = await fetch("/api/attachments", {
+      method: "POST",
+      credentials: "same-origin",
+      headers,
+      body: form,
+    });
+    if (!response.ok) {
+      throw new ApiError(response.status, await response.json().catch(() => null));
+    }
+    return response.json() as Promise<Attachment>;
+  }
+
+  /** Returns the same-origin download path for one authorized attachment. */
+  attachmentUrl(attachmentId: string): string {
+    return `/api/attachments/${encodeURIComponent(attachmentId)}`;
   }
 
   /** Loads recent privacy-bounded administrative audit entries. */

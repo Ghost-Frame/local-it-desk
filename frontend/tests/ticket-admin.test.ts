@@ -23,6 +23,8 @@ function makeTicket(overrides: Partial<Ticket>): Ticket {
     status: overrides.status ?? "new",
     created_at: overrides.created_at ?? "2026-07-30T10:00:00Z",
     updated_at: overrides.updated_at ?? "2026-07-30T10:00:00Z",
+    resolved_at: overrides.resolved_at ?? null,
+    closed_at: overrides.closed_at ?? null,
   };
 }
 

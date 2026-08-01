@@ -58,6 +58,10 @@ export interface Ticket {
   created_at: string;
   /** UTC last-change timestamp. */
   updated_at: string;
+  /** UTC timestamp when the ticket most recently became resolved. */
+  resolved_at: string | null;
+  /** UTC timestamp when the ticket most recently became closed. */
+  closed_at: string | null;
 }
 
 /** One public comment or staff-only internal note. */
@@ -74,6 +78,8 @@ export interface TicketComment {
   visibility: CommentVisibility;
   /** UTC creation timestamp. */
   created_at: string;
+  /** UTC timestamp of the most recent comment mutation. */
+  updated_at: string;
 }
 
 /** Approved attachment parent types. */
@@ -103,8 +109,34 @@ export interface PublicConfig {
   app_name: string;
   /** Optional operator-configured support contact. */
   support_contact: string | null;
+  /** Stable public raster logo endpoint when one is configured. */
+  logo_url: string | null;
+  /** Maximum bytes allowed for one uploaded file. */
+  max_upload_bytes: number;
+  /** Maximum aggregate attachment bytes allowed on one ticket. */
+  max_ticket_upload_bytes: number;
+  /** Active requester-selectable ticket categories. */
+  categories: PublicCategory[];
+  /** Active category preselected for new requests. */
+  default_category_id: string | null;
+  /** Priority preselected for new requests. */
+  default_priority: TicketPriority;
   /** Whether the first administrator must still be created. */
   setup_required: boolean;
+  /** Running server package version. */
+  version: string;
+}
+
+/** One active requester-selectable category from public configuration. */
+export interface PublicCategory {
+  /** Stable category identifier. */
+  id: string;
+  /** Human-facing category name. */
+  name: string;
+  /** Optional explanatory category text. */
+  description: string | null;
+  /** Administrator-controlled display order. */
+  sort_order: number;
 }
 
 /** Credentials submitted to the built-in local login endpoint. */
@@ -240,7 +272,7 @@ export interface CreateTicketRequest {
   /** Full problem description. */
   description: string;
   /** Selected administrator-configured category. */
-  category_id: string | null;
+  category_id: string;
   /** Requester-selected urgency. */
   priority: TicketPriority;
 }
@@ -251,6 +283,24 @@ export interface ListTicketsParams {
   status?: TicketStatus;
   /** Optional category filter. */
   category_id?: string;
+  /** Optional exact urgency filter. */
+  priority?: TicketPriority;
+  /** Optional exact technician assignment filter. */
+  assignee_id?: string;
+  /** Optional case-insensitive title and description search. */
+  search?: string;
+  /** Opaque continuation cursor returned by the previous page. */
+  cursor?: string;
+  /** Requested bounded result count. */
+  page_size?: number;
+}
+
+/** One stable newest-first ticket page. */
+export interface TicketPage {
+  /** Tickets visible to the signed-in account. */
+  items: Ticket[];
+  /** Opaque cursor for the next page when more records exist. */
+  next_cursor: string | null;
 }
 
 /** Partial technician or administrator ticket update. */
@@ -261,6 +311,10 @@ export interface UpdateTicketRequest {
   priority?: TicketPriority;
   /** Replacement technician assignment. */
   assignee_id?: string | null;
+  /** Replacement active category. */
+  category_id?: string;
+  /** Timestamp observed by the client for conflict detection. */
+  expected_updated_at?: string;
 }
 
 /** Data required to add a ticket conversation entry. */
