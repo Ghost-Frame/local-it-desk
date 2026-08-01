@@ -25,7 +25,6 @@ serde.workspace = true
 serde_json.workspace = true
 csv.workspace = true
 argon2.workspace = true
-password-hash.workspace = true
 uuid.workspace = true
 chrono.workspace = true
 tracing.workspace = true
