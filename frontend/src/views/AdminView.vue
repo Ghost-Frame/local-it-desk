@@ -9,16 +9,18 @@ import RosterImport from "@/components/admin/RosterImport.vue";
 import UserEditor from "@/components/admin/UserEditor.vue";
 import UserRow from "@/components/admin/UserRow.vue";
 import AppLayout from "@/components/layout/AppLayout.vue";
+import AdminTicketQueue from "@/components/tickets/AdminTicketQueue.vue";
 import { accountErrorMessage, isFinalActiveAdministrator } from "@/lib/account-admin";
 import { api } from "@/lib/api";
 import { useAuthStore } from "@/stores/auth";
 import type { AuditEntry, CreateUserRequest, OneTimeCredential, UpdateUserRequest, User } from "@/types/api";
 
 /** Approved administrator tabs. */
-type AdminTab = "staff" | "roster" | "sessions" | "audit";
+type AdminTab = "tickets" | "staff" | "roster" | "sessions" | "audit";
 
 /** Stable tab definitions for keyboard and screen-reader navigation. */
 const tabs: Array<{ id: AdminTab; label: string }> = [
+  { id: "tickets", label: "Ticket queue" },
   { id: "staff", label: "Staff" },
   { id: "roster", label: "Roster import" },
   { id: "sessions", label: "Sessions" },
@@ -30,7 +32,7 @@ const router = useRouter();
 /** Current local authentication state. */
 const authStore = useAuthStore();
 /** Currently selected administration area. */
-const activeTab = ref<AdminTab>("staff");
+const activeTab = ref<AdminTab>("tickets");
 /** Current bounded account page. */
 const users = ref<User[]>([]);
 /** Current bounded audit page. */
@@ -177,7 +179,7 @@ onMounted(() => {
 
     <section v-else class="space-y-6">
       <header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div><p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-accent-primary)]">Local operator console</p><h1 class="mt-3 text-4xl font-bold tracking-tight">Administration</h1><p class="mt-3 max-w-2xl text-[var(--color-text-secondary)]">Manage named staff access without external email or identity services.</p></div>
+        <div><p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-accent-primary)]">Local operator console</p><h1 class="mt-3 text-4xl font-bold tracking-tight">Administration</h1><p class="mt-3 max-w-2xl text-[var(--color-text-secondary)]">Run the support queue and manage named staff access without external email or identity services.</p></div>
         <p class="rounded-lg bg-[var(--color-surface-tertiary)] px-4 py-3 text-sm"><strong>{{ users.length }}</strong> local accounts</p>
       </header>
 
@@ -188,7 +190,16 @@ onMounted(() => {
         <button v-for="tab in tabs" :id="`tab-${tab.id}`" :key="tab.id" class="min-h-11 shrink-0 border-b-2 px-4 text-sm font-bold" :class="activeTab === tab.id ? 'border-[var(--color-accent-primary)] text-[var(--color-accent-primary)]' : 'border-transparent text-[var(--color-text-secondary)]'" role="tab" :aria-selected="activeTab === tab.id" :aria-controls="`panel-${tab.id}`" @click="selectTab(tab.id)">{{ tab.label }}</button>
       </nav>
 
-      <div v-if="activeTab === 'staff'" id="panel-staff" class="space-y-5" role="tabpanel" aria-labelledby="tab-staff">
+      <div v-if="activeTab === 'tickets'" id="panel-tickets" role="tabpanel" aria-labelledby="tab-tickets">
+        <AdminTicketQueue
+          :users="users"
+          :categories="authStore.publicConfig?.categories ?? []"
+          :is-administrator="authStore.isAdministrator"
+          :max-upload-bytes="authStore.publicConfig?.max_upload_bytes ?? 26214400"
+        />
+      </div>
+
+      <div v-else-if="activeTab === 'staff'" id="panel-staff" class="space-y-5" role="tabpanel" aria-labelledby="tab-staff">
         <UserEditor :busy="busyUserId === 'create'" @create="createAccount" />
         <p v-if="loadingUsers" role="status">Loading staff accounts…</p>
         <div v-else class="grid gap-3"><UserRow v-for="account in users" :key="account.id" :user="account" :current-user-id="authStore.user?.id ?? ''" :final-active-administrator="isFinalActiveAdministrator(users, account.id)" :busy="busyUserId === account.id" @update="updateAccount" @reset="resetPassword" @revoke="revokeSessions" /></div>
