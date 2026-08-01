@@ -9,12 +9,20 @@ export interface User {
   username: string;
   /** Human-facing staff name. */
   display_name: string;
+  /** Optional contact metadata that is not used for login. */
+  email: string | null;
   /** Current cumulative authorization role. */
   role: UserRole;
   /** Whether the account can sign in. */
   is_active: boolean;
   /** Whether a temporary password must be replaced. */
   must_change_password: boolean;
+  /** UTC account creation timestamp. */
+  created_at: string;
+  /** UTC account update timestamp. */
+  updated_at: string;
+  /** UTC timestamp of the latest successful login. */
+  last_login_at: string | null;
 }
 
 /** Approved help-desk ticket priorities. */
@@ -105,6 +113,32 @@ export interface LoginRequest {
   username: string;
   /** Plaintext password sent only over the configured origin. */
   password: string;
+}
+
+/** First-run administrator details submitted while the database is empty. */
+export interface SetupRequest {
+  /** Normalized local administrator username. */
+  username: string;
+  /** Human-facing administrator name. */
+  display_name: string;
+  /** Initial administrator passphrase. */
+  password: string;
+}
+
+/** Current-password-confirmed local credential replacement. */
+export interface ChangePasswordRequest {
+  /** Existing password used to confirm the account holder. */
+  current_password: string;
+  /** Replacement password subject to local policy. */
+  new_password: string;
+}
+
+/** Authenticated response whose CSRF secret remains only in process memory. */
+export interface AuthSession {
+  /** Public account fields for the authenticated staff member. */
+  user: User;
+  /** Per-session request-integrity secret, never persisted by the browser app. */
+  csrf_token: string;
 }
 
 /** Data required to submit one help-desk ticket. */

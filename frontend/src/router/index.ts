@@ -2,12 +2,18 @@
 
 import { createRouter, createWebHistory, type RouteRecordRaw } from "vue-router";
 
-import { canAccessAdministration } from "@/lib/admin-guard";
 import { resolveGuardRedirect } from "@/lib/router-guards";
 
 /** Approved browser routes for the foundation product. */
 const routes: RouteRecordRaw[] = [
+  { path: "/setup", name: "setup", component: () => import("@/views/SetupView.vue") },
   { path: "/login", name: "login", component: () => import("@/views/LoginView.vue") },
+  {
+    path: "/change-password",
+    name: "change-password",
+    component: () => import("@/views/ChangePasswordView.vue"),
+    meta: { requiresAuth: true },
+  },
   {
     path: "/",
     name: "dashboard",
@@ -56,15 +62,19 @@ router.beforeEach(async (to) => {
   await auth.init();
 
   const redirect = resolveGuardRedirect(
-    { path: to.path, requiresAuth: to.meta.requiresAuth === true },
-    auth.isAuthenticated,
+    {
+      path: to.path,
+      redirectPath: to.fullPath,
+      requiresAuth: to.meta.requiresAuth === true,
+      requiresAdministrator: to.meta.requiresAdministrator === true,
+    },
+    {
+      setupRequired: auth.setupRequired,
+      isAuthenticated: auth.isAuthenticated,
+      mustChangePassword: auth.mustChangePassword,
+      isAdministrator: auth.isAdministrator,
+    },
   );
   if (redirect) return redirect;
-  if (
-    to.meta.requiresAdministrator === true &&
-    !canAccessAdministration(auth.user?.role)
-  ) {
-    return { name: "dashboard" };
-  }
   return true;
 });

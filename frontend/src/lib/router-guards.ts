@@ -1,60 +1,72 @@
-/**
- * router-guards.ts
- *
- * Pure navigation-guard helper extracted from the router so it can be unit-
- * tested under Node without a DOM or Pinia store.
- *
- * The function is intentionally free of side effects: it returns a redirect
- * target or undefined (allow) and leaves all routing decisions to the caller.
- */
+/** Pure navigation policy for setup, local sessions, and account roles. */
 
-/** Minimal route shape the guard needs to make its decision. */
+/** Minimal route shape required by the authentication guard. */
 export interface GuardRoute {
-  /** The path being navigated to. */
+  /** Canonical route path without its query string. */
   path: string;
-  /** True if the route requires an authenticated user. */
+  /** Full local destination preserved after successful login. */
+  redirectPath?: string;
+  /** Whether the destination requires a valid local session. */
   requiresAuth: boolean;
+  /** Whether the destination additionally requires an administrator. */
+  requiresAdministrator?: boolean;
 }
 
-/**
- * Decide whether a navigation should be redirected.
- *
- * Rules:
- * - If the destination requires auth and the user is NOT authenticated,
- *   redirect to /login preserving the intended path as ?redirect=<path>.
- *   Precondition: /login must NOT be marked requiresAuth=true in the route
- *   definition; if it were, this branch would redirect /login -> /login and
- *   loop. The guard defends against that by skipping the redirect when the
- *   destination is already /login.
- * - If the destination is /login and the user IS authenticated,
- *   redirect to / (already logged in).
- * - Otherwise, allow the navigation (return undefined).
- *
- * @param to       - The route being navigated to.
- * @param isAuthed - Whether the current user has a valid session.
- * @returns A redirect path string, or undefined to allow the navigation.
- */
+/** Current authentication facts used by the pure route policy. */
+export interface AuthGuardState {
+  /** Whether the empty database still needs its first administrator. */
+  setupRequired: boolean;
+  /** Whether a server-managed session resolved a current account. */
+  isAuthenticated: boolean;
+  /** Whether normal product access is blocked until password replacement. */
+  mustChangePassword: boolean;
+  /** Whether the current account holds the administrator role. */
+  isAdministrator: boolean;
+}
+
+/** Returns a same-origin application path or a safe dashboard fallback. */
+export function safePostLoginPath(candidate: unknown): string {
+  if (typeof candidate !== "string") return "/";
+  if (!candidate.startsWith("/") || candidate.startsWith("//")) return "/";
+  if (candidate.includes("\\") || /[\u0000-\u001f\u007f]/.test(candidate)) return "/";
+  if (["/login", "/setup", "/change-password"].includes(candidate)) return "/";
+  return candidate;
+}
+
+/** Converts the former boolean guard input into a complete compatibility state. */
+function normalizeState(state: AuthGuardState | boolean): AuthGuardState {
+  if (typeof state !== "boolean") return state;
+  return {
+    setupRequired: false,
+    isAuthenticated: state,
+    mustChangePassword: false,
+    isAdministrator: false,
+  };
+}
+
+/** Resolves one redirect while preventing setup, login, and forced-change loops. */
 export function resolveGuardRedirect(
   to: GuardRoute,
-  isAuthed: boolean,
+  suppliedState: AuthGuardState | boolean,
 ): string | undefined {
-  if (to.requiresAuth && !isAuthed) {
-    /**
-     * Self-redirect guard: if the destination is already /login, allow it
-     * through instead of producing a /login?redirect=%2Flogin loop.
-     * This handles the misconfigured-route case defensively.
-     */
+  const state = normalizeState(suppliedState);
+
+  if (state.setupRequired) {
+    return to.path === "/setup" ? undefined : "/setup";
+  }
+  if (to.path === "/setup") {
+    return state.isAuthenticated ? "/" : "/login";
+  }
+  if (!state.isAuthenticated) {
     if (to.path === "/login") return undefined;
-
-    /** Encode the intended destination for post-login redirect. */
-    const redirect = encodeURIComponent(to.path);
-    return `/login?redirect=${redirect}`;
+    if (!to.requiresAuth) return undefined;
+    const intended = safePostLoginPath(to.redirectPath ?? to.path);
+    return `/login?redirect=${encodeURIComponent(intended)}`;
   }
-
-  if (to.path === "/login" && isAuthed) {
-    /** Already authenticated -- bounce to app root. */
-    return "/";
+  if (state.mustChangePassword) {
+    return to.path === "/change-password" ? undefined : "/change-password";
   }
-
+  if (["/login", "/change-password"].includes(to.path)) return "/";
+  if (to.requiresAdministrator && !state.isAdministrator) return "/";
   return undefined;
 }

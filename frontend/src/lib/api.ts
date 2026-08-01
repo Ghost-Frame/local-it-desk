@@ -1,11 +1,14 @@
 import type {
   AddCommentRequest,
   Attachment,
+  AuthSession,
   AuditEntry,
+  ChangePasswordRequest,
   CreateTicketRequest,
   ListTicketsParams,
   LoginRequest,
   PublicConfig,
+  SetupRequest,
   Ticket,
   TicketComment,
   UpdateTicketRequest,
@@ -39,13 +42,21 @@ function queryString(params: ListTicketsParams): string {
 }
 
 /** Same-origin HTTP client for server-managed cookie sessions. */
-class ApiClient {
-  /** Sends a JSON request with same-origin cookies. */
+export class ApiClient {
+  /** Per-session CSRF secret retained only by this in-memory client instance. */
+  private csrfToken: string | null = null;
+
+  /** Sends a JSON request with same-origin cookies and request-integrity proof. */
   private async request<T>(method: string, path: string, body?: unknown): Promise<T> {
+    const headers = new Headers();
+    if (body !== undefined) headers.set("Content-Type", "application/json");
+    if (this.csrfToken && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+      headers.set("X-CSRF-Token", this.csrfToken);
+    }
     const response = await fetch(`/api${path}`, {
       method,
       credentials: "same-origin",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     if (!response.ok) {
@@ -55,6 +66,17 @@ class ApiClient {
     return response.json() as Promise<T>;
   }
 
+  /** Accepts fresh public identity and replaces the transient CSRF secret. */
+  private acceptSession(session: AuthSession): User {
+    this.csrfToken = session.csrf_token;
+    return session.user;
+  }
+
+  /** Clears all browser-process authentication material held by the client. */
+  clearAuthentication(): void {
+    this.csrfToken = null;
+  }
+
   /** Loads non-secret branding and setup state. */
   async getPublicConfig(): Promise<PublicConfig> {
     const response = await fetch("/api/config", { credentials: "same-origin" });
@@ -62,19 +84,37 @@ class ApiClient {
     return response.json() as Promise<PublicConfig>;
   }
 
+  /** Creates the first administrator and accepts the issued local session. */
+  async setup(details: SetupRequest): Promise<User> {
+    const session = await this.request<AuthSession>("POST", "/setup", details);
+    return this.acceptSession(session);
+  }
+
   /** Starts a built-in local account session. */
   async login(credentials: LoginRequest): Promise<User> {
-    return this.request("POST", "/auth/login", credentials);
+    const session = await this.request<AuthSession>("POST", "/auth/login", credentials);
+    return this.acceptSession(session);
   }
 
   /** Ends the current local account session. */
   async logout(): Promise<void> {
-    return this.request("POST", "/auth/logout");
+    try {
+      await this.request<void>("POST", "/auth/logout");
+    } finally {
+      this.clearAuthentication();
+    }
   }
 
-  /** Loads the current authenticated account. */
-  async getCurrentUser(): Promise<User> {
-    return this.request("GET", "/users/me");
+  /** Resolves the current cookie session and restores transient CSRF state. */
+  async getCurrentSession(): Promise<User> {
+    const session = await this.request<AuthSession>("GET", "/auth/session");
+    return this.acceptSession(session);
+  }
+
+  /** Replaces the current password and accepts the rotated local session. */
+  async changePassword(details: ChangePasswordRequest): Promise<User> {
+    const session = await this.request<AuthSession>("POST", "/auth/password", details);
+    return this.acceptSession(session);
   }
 
   /** Lists accounts for administrator-managed assignment controls. */

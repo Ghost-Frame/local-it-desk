@@ -1,10 +1,16 @@
-/** Cookie-session authentication state for the local help desk. */
+/** In-memory identity state for server-managed local account sessions. */
 
 import { computed, ref } from "vue";
 import { defineStore } from "pinia";
 
 import { api } from "@/lib/api";
-import type { LoginRequest, PublicConfig, User } from "@/types/api";
+import type {
+  ChangePasswordRequest,
+  LoginRequest,
+  PublicConfig,
+  SetupRequest,
+  User,
+} from "@/types/api";
 
 /** Shared authentication and public-configuration store. */
 export const useAuthStore = defineStore("auth", () => {
@@ -15,6 +21,10 @@ export const useAuthStore = defineStore("auth", () => {
 
   /** Whether a server-managed session resolved an account. */
   const isAuthenticated = computed(() => user.value !== null);
+  /** Whether first-run administrator setup is still required. */
+  const setupRequired = computed(() => publicConfig.value?.setup_required === true);
+  /** Whether product access remains blocked pending password replacement. */
+  const mustChangePassword = computed(() => user.value?.must_change_password === true);
   /** Whether the current role can manage shared tickets. */
   const canWorkTickets = computed(
     () => user.value?.role === "technician" || user.value?.role === "administrator",
@@ -24,30 +34,45 @@ export const useAuthStore = defineStore("auth", () => {
   /** Display name used by the application shell. */
   const displayName = computed(() => user.value?.display_name ?? "Signed out");
 
-  /** Loads public configuration and attempts to resolve an existing cookie session once. */
+  /** Loads public configuration and resolves an existing cookie session once. */
   async function init(): Promise<void> {
     if (initPromise) return initPromise;
     initPromise = initialize();
     return initPromise;
   }
 
-  /** Performs the first-load requests without exposing authentication details. */
+  /** Performs first-load requests without exposing authentication details. */
   async function initialize(): Promise<void> {
     try {
       publicConfig.value = await api.getPublicConfig();
+      if (publicConfig.value.setup_required) {
+        clearIdentity();
+        return;
+      }
       try {
-        user.value = await api.getCurrentUser();
+        user.value = await api.getCurrentSession();
       } catch {
-        user.value = null;
+        clearIdentity();
       }
     } finally {
       isLoading.value = false;
     }
   }
 
-  /** Starts a local account session and stores only the returned public user. */
+  /** Creates the first local administrator and enters its new session. */
+  async function setup(details: SetupRequest): Promise<void> {
+    user.value = await api.setup(details);
+    if (publicConfig.value) publicConfig.value.setup_required = false;
+  }
+
+  /** Starts a local account session and retains only public identity state. */
   async function login(credentials: LoginRequest): Promise<void> {
     user.value = await api.login(credentials);
+  }
+
+  /** Replaces the current password and accepts the server-rotated session. */
+  async function changePassword(details: ChangePasswordRequest): Promise<void> {
+    user.value = await api.changePassword(details);
   }
 
   /** Ends the local account session and clears browser identity state. */
@@ -55,8 +80,14 @@ export const useAuthStore = defineStore("auth", () => {
     try {
       await api.logout();
     } finally {
-      user.value = null;
+      clearIdentity();
     }
+  }
+
+  /** Clears public identity and transient request-integrity state together. */
+  function clearIdentity(): void {
+    user.value = null;
+    api.clearAuthentication();
   }
 
   return {
@@ -64,11 +95,15 @@ export const useAuthStore = defineStore("auth", () => {
     publicConfig,
     isLoading,
     isAuthenticated,
+    setupRequired,
+    mustChangePassword,
     canWorkTickets,
     isAdministrator,
     displayName,
     init,
+    setup,
     login,
+    changePassword,
     logout,
   };
 });
