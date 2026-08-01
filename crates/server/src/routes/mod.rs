@@ -19,6 +19,8 @@ use crate::models::ticket::TicketPriority;
 
 /// Administrator foundation routes.
 pub mod admin_routes;
+/// Signed-in staff announcement and administrator bulletin routes.
+pub mod announcement_routes;
 /// Ticket and announcement attachment foundation routes.
 pub mod attachment_routes;
 /// Local account foundation routes.
@@ -139,6 +141,7 @@ pub fn build_router(config: Config, pool: Pool) -> Router {
         .route("/health/live", get(liveness))
         .route("/health/ready", get(readiness))
         .merge(auth_routes::router())
+        .merge(announcement_routes::router())
         .merge(settings_routes::router(state.config.max_upload_bytes))
         .merge(ticket_routes::router())
         .merge(attachment_routes::router(state.config.max_upload_bytes))
