@@ -74,12 +74,7 @@ async fn public_foundation_routes_match_contract() {
 #[tokio::test]
 async fn retained_api_families_are_mounted() {
     let (app, _temp) = test_router().await;
-    for (method, path) in [
-        ("GET", "/api/tickets"),
-        ("POST", "/api/attachments"),
-        ("GET", "/api/users"),
-        ("GET", "/api/admin/audit-log"),
-    ] {
+    for (method, path) in [("GET", "/api/tickets"), ("POST", "/api/attachments")] {
         let (status, _body) = request_json(&app, method, path).await;
         assert_eq!(
             status,

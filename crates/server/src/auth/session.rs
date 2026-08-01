@@ -183,9 +183,7 @@ pub fn session_cookie(token: &str, secure: bool, ttl_days: u64) -> String {
 /// Builds a Set-Cookie value that immediately removes the browser session.
 pub fn clear_session_cookie(secure: bool) -> String {
     let secure_flag = if secure { "; Secure" } else { "" };
-    format!(
-        "{SESSION_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{secure_flag}"
-    )
+    format!("{SESSION_COOKIE_NAME}=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0{secure_flag}")
 }
 
 /// Returns the stable lowercase SHA-256 representation stored for a secret.
@@ -204,11 +202,7 @@ pub fn csrf_for_session_token(session_token: &str) -> String {
 /// Compares a submitted CSRF token with one stored hash in constant time.
 pub fn verify_csrf(submitted: &str, expected_hash: &str) -> bool {
     let submitted_hash = hash_secret(submitted);
-    bool::from(
-        submitted_hash
-            .as_bytes()
-            .ct_eq(expected_hash.as_bytes()),
-    )
+    bool::from(submitted_hash.as_bytes().ct_eq(expected_hash.as_bytes()))
 }
 
 /// Temporary decoding structure that includes invalidation flags.
@@ -267,7 +261,10 @@ fn conversion_error(index: usize, message: &'static str) -> rusqlite::Error {
     rusqlite::Error::FromSqlConversionFailure(
         index,
         Type::Text,
-        Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, message)),
+        Box::new(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            message,
+        )),
     )
 }
 

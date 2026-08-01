@@ -129,9 +129,8 @@ pub fn insert(connection: &Connection, prepared: &PreparedUser) -> AppResult<Use
         ],
     );
     match result {
-        Ok(_) => find_by_id(connection, prepared.id)?.ok_or_else(|| {
-            AppError::Internal("created account could not be reloaded".to_string())
-        }),
+        Ok(_) => find_by_id(connection, prepared.id)?
+            .ok_or_else(|| AppError::Internal("created account could not be reloaded".to_string())),
         Err(error) if error.sqlite_error_code() == Some(ErrorCode::ConstraintViolation) => Err(
             AppError::Conflict("username or account metadata already exists".to_string()),
         ),
@@ -151,6 +150,22 @@ pub fn find_by_id(connection: &Connection, id: Uuid) -> AppResult<Option<User>> 
         )
         .optional()
         .map_err(Into::into)
+}
+
+/// Lists one bounded page of public staff accounts and the total row count.
+pub fn list(connection: &Connection, offset: u64, limit: u64) -> AppResult<(Vec<User>, u64)> {
+    let total = connection.query_row("SELECT COUNT(*) FROM users", [], |row| row.get(0))?;
+    let mut statement = connection.prepare(
+        "SELECT id, username, display_name, email, role, is_active,
+                must_change_password, created_at, updated_at, last_login_at
+         FROM users
+         ORDER BY display_name COLLATE NOCASE, username COLLATE NOCASE
+         LIMIT ?1 OFFSET ?2",
+    )?;
+    let users = statement
+        .query_map(params![limit, offset], decode_user)?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok((users, total))
 }
 
 /// Authenticates one normalized account with a uniform public failure result.
@@ -176,6 +191,20 @@ pub fn authenticate(connection: &Connection, username: &str, password: &str) -> 
     )?;
     credentials.user.last_login_at = Some(last_login_at);
     Ok(credentials.user)
+}
+
+/// Confirms one active account's current password without mutating login metadata.
+pub fn confirms_password(connection: &Connection, id: Uuid, password: &str) -> AppResult<bool> {
+    let password_hash = connection
+        .query_row(
+            "SELECT password_hash FROM users WHERE id = ?1 AND is_active = 1",
+            [id.to_string()],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()?;
+    Ok(password_hash
+        .as_deref()
+        .is_some_and(|stored| verify_password(password, stored)))
 }
 
 /// Returns whether the atomic first-administrator setup remains available.
@@ -222,7 +251,10 @@ fn decode_user(row: &Row<'_>) -> rusqlite::Result<User> {
             rusqlite::Error::FromSqlConversionFailure(
                 4,
                 Type::Text,
-                Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, message)),
+                Box::new(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    message,
+                )),
             )
         })?,
         is_active: row.get(5)?,
@@ -243,7 +275,9 @@ fn normalize_email(email: Option<&str>) -> AppResult<Option<String>> {
         && normalized.contains('@')
         && !normalized.chars().any(char::is_control);
     if !is_valid {
-        return Err(AppError::BadRequest("email metadata is invalid".to_string()));
+        return Err(AppError::BadRequest(
+            "email metadata is invalid".to_string(),
+        ));
     }
     Ok(Some(normalized))
 }

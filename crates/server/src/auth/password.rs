@@ -2,6 +2,7 @@
 
 use argon2::Argon2;
 use argon2::password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString};
+use base64::Engine;
 use password_hash::rand_core::OsRng;
 
 use crate::error::{AppError, AppResult};
@@ -62,6 +63,13 @@ pub fn verify_password(password: &str, password_hash: &str) -> bool {
     Argon2::default()
         .verify_password(password.as_bytes(), &parsed)
         .is_ok()
+}
+
+/// Generates a high-entropy temporary passphrase suitable for one-time delivery.
+pub fn generate_temporary_password() -> String {
+    let mut bytes = [0_u8; 24];
+    rand::fill(&mut bytes);
+    base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes)
 }
 
 #[cfg(test)]

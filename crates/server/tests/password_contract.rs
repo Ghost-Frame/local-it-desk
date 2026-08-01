@@ -43,7 +43,10 @@ fn username_normalization_and_grammar_are_exact() {
         "téacher",
         "teacher/name",
     ] {
-        assert!(normalize_username(invalid).is_err(), "{invalid:?} must fail");
+        assert!(
+            normalize_username(invalid).is_err(),
+            "{invalid:?} must fail"
+        );
     }
 }
 
@@ -73,7 +76,10 @@ fn argon2id_hashes_verify_without_panicking() {
     assert!(hash.starts_with("$argon2id$"));
     assert!(verify_password("correct horse battery staple", &hash));
     assert!(!verify_password("wrong horse battery staple", &hash));
-    assert!(!verify_password("correct horse battery staple", "not-a-password-hash"));
+    assert!(!verify_password(
+        "correct horse battery staple",
+        "not-a-password-hash"
+    ));
 }
 
 /// Confirms persisted row decoding exposes account state but never credential material.
@@ -82,7 +88,11 @@ fn account_creation_and_lookup_round_trip() {
     let connection = database();
     let created = user::create(
         &connection,
-        &requester("Teacher.One", "Renée O'Connor", "correct horse battery staple"),
+        &requester(
+            "Teacher.One",
+            "Renée O'Connor",
+            "correct horse battery staple",
+        ),
     )
     .expect("account creation");
     let loaded = user::find_by_id(&connection, created.id)
@@ -105,12 +115,20 @@ fn normalized_duplicate_usernames_conflict() {
     let connection = database();
     user::create(
         &connection,
-        &requester("teacher.one", "First Teacher", "correct horse battery staple"),
+        &requester(
+            "teacher.one",
+            "First Teacher",
+            "correct horse battery staple",
+        ),
     )
     .expect("first account");
     let error = user::create(
         &connection,
-        &requester("TEACHER.ONE", "Second Teacher", "another correct horse battery"),
+        &requester(
+            "TEACHER.ONE",
+            "Second Teacher",
+            "another correct horse battery",
+        ),
     )
     .expect_err("duplicate account must fail");
     assert!(matches!(error, AppError::Conflict(_)));
@@ -122,7 +140,11 @@ fn authentication_failures_are_uniform() {
     let connection = database();
     let account = user::create(
         &connection,
-        &requester("teacher.one", "First Teacher", "correct horse battery staple"),
+        &requester(
+            "teacher.one",
+            "First Teacher",
+            "correct horse battery staple",
+        ),
     )
     .expect("account creation");
 

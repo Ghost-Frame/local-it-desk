@@ -2,10 +2,10 @@
 
 use std::net::SocketAddr;
 
+use axum::Router;
 use axum::body::{Body, to_bytes};
 use axum::extract::ConnectInfo;
 use axum::http::{Request, StatusCode};
-use axum::Router;
 use deadpool_sqlite::Pool;
 use local_it_desk_server::auth::Role;
 use local_it_desk_server::auth::middleware::SESSION_COOKIE_NAME;
@@ -121,7 +121,16 @@ fn setup_body(username: &str) -> Value {
 #[tokio::test]
 async fn first_run_setup_provisions_defaults_and_session() {
     let (app, pool, _temp) = test_app().await;
-    let before = send(&app, "GET", "/api/setup/status", json!({}), None, None, None).await;
+    let before = send(
+        &app,
+        "GET",
+        "/api/setup/status",
+        json!({}),
+        None,
+        None,
+        None,
+    )
+    .await;
     assert_eq!(before.status, StatusCode::OK);
     assert_eq!(before.body, json!({ "setup_required": true }));
 
@@ -139,7 +148,11 @@ async fn first_run_setup_provisions_defaults_and_session() {
     assert_eq!(setup.body["user"]["username"], "teacher.admin");
     assert_eq!(setup.body["user"]["role"], "administrator");
     assert_eq!(setup.body["user"]["must_change_password"], false);
-    assert!(setup.body["csrf_token"].as_str().is_some_and(|value| value.len() >= 32));
+    assert!(
+        setup.body["csrf_token"]
+            .as_str()
+            .is_some_and(|value| value.len() >= 32)
+    );
     let set_cookie = setup.set_cookie.expect("session cookie");
     assert!(set_cookie.starts_with(&format!("{SESSION_COOKIE_NAME}=")));
     assert!(set_cookie.contains("HttpOnly"));
@@ -148,17 +161,38 @@ async fn first_run_setup_provisions_defaults_and_session() {
     let counts = db::interact(&pool, |connection| {
         Ok((
             connection.query_row("SELECT COUNT(*) FROM users", [], |row| row.get::<_, u64>(0))?,
-            connection.query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get::<_, u64>(0))?,
-            connection.query_row("SELECT COUNT(*) FROM categories WHERE name = 'General'", [], |row| row.get::<_, u64>(0))?,
-            connection.query_row("SELECT COUNT(*) FROM settings", [], |row| row.get::<_, u64>(0))?,
-            connection.query_row("SELECT COUNT(*) FROM audit_log WHERE action = 'setup.completed'", [], |row| row.get::<_, u64>(0))?,
+            connection.query_row("SELECT COUNT(*) FROM sessions", [], |row| {
+                row.get::<_, u64>(0)
+            })?,
+            connection.query_row(
+                "SELECT COUNT(*) FROM categories WHERE name = 'General'",
+                [],
+                |row| row.get::<_, u64>(0),
+            )?,
+            connection.query_row("SELECT COUNT(*) FROM settings", [], |row| {
+                row.get::<_, u64>(0)
+            })?,
+            connection.query_row(
+                "SELECT COUNT(*) FROM audit_log WHERE action = 'setup.completed'",
+                [],
+                |row| row.get::<_, u64>(0),
+            )?,
         ))
     })
     .await
     .expect("setup counts");
     assert_eq!(counts, (1, 1, 1, 2, 1));
 
-    let after = send(&app, "GET", "/api/setup/status", json!({}), None, None, None).await;
+    let after = send(
+        &app,
+        "GET",
+        "/api/setup/status",
+        json!({}),
+        None,
+        None,
+        None,
+    )
+    .await;
     assert_eq!(after.body, json!({ "setup_required": false }));
     let repeated = send(
         &app,
@@ -439,7 +473,12 @@ async fn password_change_and_logout_rotate_session_state() {
     )
     .await;
     assert_eq!(logout.status, StatusCode::NO_CONTENT);
-    assert!(logout.set_cookie.as_deref().is_some_and(|value| value.contains("Max-Age=0")));
+    assert!(
+        logout
+            .set_cookie
+            .as_deref()
+            .is_some_and(|value| value.contains("Max-Age=0"))
+    );
     let after_logout = send(
         &app,
         "GET",

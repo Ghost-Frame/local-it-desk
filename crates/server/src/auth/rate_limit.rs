@@ -71,7 +71,10 @@ impl LoginRateLimiter {
     pub fn check(&self, identity: &str, peer: IpAddr) -> AppResult<()> {
         let key = attempt_key(identity, peer);
         let now = Instant::now();
-        let mut entries = self.entries.lock().unwrap_or_else(|error| error.into_inner());
+        let mut entries = self
+            .entries
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
         entries.retain(|_, state| !state.is_stale(now, self.window, self.lockout));
         if entries
             .get(&key)
@@ -87,7 +90,10 @@ impl LoginRateLimiter {
     pub fn record_failure(&self, identity: &str, peer: IpAddr) {
         let key = attempt_key(identity, peer);
         let now = Instant::now();
-        let mut entries = self.entries.lock().unwrap_or_else(|error| error.into_inner());
+        let mut entries = self
+            .entries
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
         let state = entries.entry(key).or_insert(AttemptState {
             window_started: now,
             failures: 0,
@@ -119,7 +125,9 @@ impl AttemptState {
     /// Returns whether a record can be removed without weakening active lockout.
     fn is_stale(&self, now: Instant, window: Duration, lockout: Duration) -> bool {
         let window_stale = now.duration_since(self.window_started) >= window + lockout;
-        let block_stale = self.blocked_until.is_none_or(|blocked_until| blocked_until <= now);
+        let block_stale = self
+            .blocked_until
+            .is_none_or(|blocked_until| blocked_until <= now);
         window_stale && block_stale
     }
 }
@@ -127,7 +135,12 @@ impl AttemptState {
 /// Builds a bounded, case-insensitive limiter key without validating account existence.
 fn attempt_key(identity: &str, peer: IpAddr) -> AttemptKey {
     AttemptKey {
-        identity: identity.trim().to_ascii_lowercase().chars().take(64).collect(),
+        identity: identity
+            .trim()
+            .to_ascii_lowercase()
+            .chars()
+            .take(64)
+            .collect(),
         peer,
     }
 }

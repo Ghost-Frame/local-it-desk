@@ -175,5 +175,8 @@ fn session_cookie_value(headers: &HeaderMap) -> Option<String> {
 
 /// Returns whether the HTTP method requires a submitted CSRF secret.
 fn requires_csrf(method: &Method) -> bool {
-    matches!(method, &Method::POST | &Method::PUT | &Method::PATCH | &Method::DELETE)
+    matches!(
+        method,
+        &Method::POST | &Method::PUT | &Method::PATCH | &Method::DELETE
+    )
 }

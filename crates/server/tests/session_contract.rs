@@ -103,11 +103,19 @@ fn invalid_session_states_fail_closed() {
             ],
         )
         .expect("expire session");
-    assert!(session::resolve(&connection, &expired.token).expect("lookup").is_none());
+    assert!(
+        session::resolve(&connection, &expired.token)
+            .expect("lookup")
+            .is_none()
+    );
 
     let revoked = session::create(&connection, user.id, 14).expect("revoked fixture");
     session::revoke(&connection, revoked.id).expect("revoke session");
-    assert!(session::resolve(&connection, &revoked.token).expect("lookup").is_none());
+    assert!(
+        session::resolve(&connection, &revoked.token)
+            .expect("lookup")
+            .is_none()
+    );
 
     let disabled = session::create(&connection, user.id, 14).expect("disabled fixture");
     connection
@@ -116,7 +124,11 @@ fn invalid_session_states_fail_closed() {
             [user.id.to_string()],
         )
         .expect("disable account");
-    assert!(session::resolve(&connection, &disabled.token).expect("lookup").is_none());
+    assert!(
+        session::resolve(&connection, &disabled.token)
+            .expect("lookup")
+            .is_none()
+    );
 }
 
 /// Confirms password reset revocation and role changes take effect without stale claims.
@@ -142,8 +154,16 @@ fn session_revocation_and_live_role_loading_are_immediate() {
         session::revoke_all_for_user(&connection, user.id).expect("revoke all"),
         2
     );
-    assert!(session::resolve(&connection, &first.token).expect("lookup").is_none());
-    assert!(session::resolve(&connection, &second.token).expect("lookup").is_none());
+    assert!(
+        session::resolve(&connection, &first.token)
+            .expect("lookup")
+            .is_none()
+    );
+    assert!(
+        session::resolve(&connection, &second.token)
+            .expect("lookup")
+            .is_none()
+    );
 }
 
 /// Confirms privilege-sensitive session rotation invalidates the prior bearer token.
@@ -152,12 +172,16 @@ fn session_rotation_replaces_all_browser_secrets() {
     let connection = database();
     let user = account(&connection, Role::Administrator, false);
     let original = session::create(&connection, user.id, 14).expect("original session");
-    let replacement = session::rotate(&connection, original.id, user.id, 14)
-        .expect("rotated session");
+    let replacement =
+        session::rotate(&connection, original.id, user.id, 14).expect("rotated session");
 
     assert_ne!(original.token, replacement.token);
     assert_ne!(original.csrf_token, replacement.csrf_token);
-    assert!(session::resolve(&connection, &original.token).expect("lookup").is_none());
+    assert!(
+        session::resolve(&connection, &original.token)
+            .expect("lookup")
+            .is_none()
+    );
     assert!(
         session::resolve(&connection, &replacement.token)
             .expect("lookup")

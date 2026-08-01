@@ -9,10 +9,10 @@ use deadpool_sqlite::Pool;
 use serde::Serialize;
 use tower_http::services::{ServeDir, ServeFile};
 
+use crate::auth::rate_limit::LoginRateLimiter;
 use crate::config::Config;
 use crate::db;
 use crate::error::{AppError, AppResult};
-use crate::auth::rate_limit::LoginRateLimiter;
 
 /// Administrator foundation routes.
 pub mod admin_routes;

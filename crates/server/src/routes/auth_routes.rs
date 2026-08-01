@@ -82,10 +82,8 @@ pub fn router() -> Router<AppState> {
 
 /// Reports whether first-administrator setup remains available.
 async fn setup_status(State(state): State<AppState>) -> AppResult<Json<SetupStatusResponse>> {
-    let setup_required = db::interact(&state.pool, |connection| {
-        user::setup_required(connection)
-    })
-    .await?;
+    let setup_required =
+        db::interact(&state.pool, |connection| user::setup_required(connection)).await?;
     Ok(Json(SetupStatusResponse { setup_required }))
 }
 
@@ -98,9 +96,7 @@ async fn setup(
 ) -> AppResult<Response> {
     require_same_origin(&headers, &state.config.application_origin)?;
     let peer = direct_peer(peer);
-    state
-        .login_limiter
-        .check(SETUP_LIMITER_IDENTITY, peer)?;
+    state.login_limiter.check(SETUP_LIMITER_IDENTITY, peer)?;
 
     let config = state.config.clone();
     let source_address = peer.to_string();
@@ -113,8 +109,7 @@ async fn setup(
             role: Role::Administrator,
             must_change_password: false,
         })?;
-        let transaction =
-            connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         if !user::setup_required(&transaction)? {
             return Err(AppError::Conflict("setup is already complete".to_string()));
         }
@@ -260,12 +255,11 @@ async fn change_password(
 ) -> AppResult<Response> {
     let session_ttl_days = state.config.session_ttl_days;
     let result = db::interact(&state.pool, move |connection| {
-        let current = user::find_by_id(connection, identity.user_id)?
-            .ok_or(AppError::Unauthorized)?;
+        let current =
+            user::find_by_id(connection, identity.user_id)?.ok_or(AppError::Unauthorized)?;
         user::authenticate(connection, &current.username, &request.current_password)?;
         let password_hash = password::hash_password(&request.new_password)?;
-        let transaction =
-            connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let now = timestamp();
         let updated = transaction.execute(
             "UPDATE users
@@ -290,8 +284,8 @@ async fn change_password(
             ],
         )?;
         transaction.commit()?;
-        let account = user::find_by_id(connection, identity.user_id)?
-            .ok_or(AppError::Unauthorized)?;
+        let account =
+            user::find_by_id(connection, identity.user_id)?.ok_or(AppError::Unauthorized)?;
         Ok((account, issued))
     })
     .await?;
