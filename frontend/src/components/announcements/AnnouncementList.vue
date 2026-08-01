@@ -27,7 +27,7 @@ const emit = defineEmits<{
 
 <template>
   <div v-if="announcements.length" class="space-y-4">
-    <article v-for="announcement in announcements" :key="announcement.id" class="rounded-2xl border bg-[var(--color-surface-primary)] p-5 sm:p-6" :class="announcement.is_pinned ? 'border-l-4 border-l-[var(--color-accent-primary)]' : ''" :style="{ borderColor: 'var(--color-border-default)' }">
+    <article v-for="announcement in announcements" :id="'announcement-' + announcement.id" :key="announcement.id" tabindex="-1" class="rounded-2xl border bg-[var(--color-surface-primary)] p-5 sm:p-6" :class="announcement.is_pinned ? 'border-l-4 border-l-[var(--color-accent-primary)]' : ''" :style="{ borderColor: 'var(--color-border-default)' }">
       <div class="flex flex-wrap items-center gap-2">
         <span v-if="announcement.is_pinned" class="rounded-full bg-[var(--color-surface-tertiary)] px-2 py-1 text-[0.65rem] font-bold uppercase tracking-wider text-[var(--color-accent-primary)]">Pinned</span>
         <span v-if="administrator" class="rounded-full bg-[var(--color-surface-tertiary)] px-2 py-1 text-[0.65rem] font-bold uppercase tracking-wider">{{ announcement.state }}</span>

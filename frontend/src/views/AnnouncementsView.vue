@@ -1,6 +1,7 @@
 <script setup lang="ts">
 /** Staff announcement feed with administrator-only drafting and lifecycle controls. */
-import { onMounted, ref } from "vue";
+import { nextTick, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 
 import AnnouncementEditor from "@/components/announcements/AnnouncementEditor.vue";
 import AnnouncementList from "@/components/announcements/AnnouncementList.vue";
@@ -11,6 +12,8 @@ import type { Announcement, CreateAnnouncementRequest } from "@/types/api";
 
 /** Current local identity and cumulative role state. */
 const authStore = useAuthStore();
+/** Current route including an optional server-generated announcement target. */
+const route = useRoute();
 /** Server-authorized published or administrator announcement records. */
 const announcements = ref<Announcement[]>([]);
 /** Record currently open in the administrator editor. */
@@ -23,6 +26,25 @@ const busyId = ref<string | null>(null);
 const error = ref("");
 /** Successful lifecycle feedback. */
 const message = ref("");
+
+/** Focuses the published announcement named by a notification route when present. */
+async function focusTargetAnnouncement(): Promise<void> {
+  /** Stable route target or null when the ordinary feed was opened. */
+  const target = typeof route.params.id === "string" ? route.params.id : null;
+  if (!target || typeof document === "undefined") return;
+  await nextTick();
+  /** Rendered announcement card addressed without selector interpolation. */
+  const element = document.getElementById("announcement-" + target);
+  if (!element) return;
+  element.focus({ preventScroll: true });
+  element.scrollIntoView({ block: "center" });
+}
+
+/** Refocuses the selected card when Vue reuses this view for another notification target. */
+watch(
+  () => route.params.id,
+  () => void focusTargetAnnouncement(),
+);
 
 /** Converts announcement API failures into safe recovery guidance. */
 function announcementError(failure: unknown): string {
@@ -42,6 +64,7 @@ async function loadAnnouncements(): Promise<void> {
     announcements.value = authStore.isAdministrator
       ? await api.listAdminAnnouncements()
       : await api.listAnnouncements();
+    await focusTargetAnnouncement();
   } catch (failure) {
     error.value = announcementError(failure);
   } finally {

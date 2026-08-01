@@ -113,6 +113,8 @@ test("announcement, notification, and settings surfaces expose lifecycle and acc
     "../../src/views/SettingsView.vue",
   ];
   const source = paths.map((path) => readFileSync(new URL(path, import.meta.url), "utf8")).join("\n");
+  /** Router contract paired with server-generated announcement notification targets. */
+  const routerSource = readFileSync(new URL("../../src/router/index.ts", import.meta.url), "utf8");
   for (const phrase of [
     "Create draft", "Publish announcement", "Archive announcement", "Pinned",
     "Mark all read", "Unread notifications", "Application name", "Support contact",
@@ -124,6 +126,9 @@ test("announcement, notification, and settings surfaces expose lifecycle and acc
   assert.ok(/aria-live="polite"/.test(source));
   assert.ok(/role="dialog"/.test(source));
   assert.ok(/@keydown="trapDialogFocus"/.test(source));
+  assert.ok(/path:\s*"\/announcements\/:id"/.test(routerSource));
+  assert.ok(/focusTargetAnnouncement/.test(source));
+  assert.ok(/watch\(\s*\(\) => route\.params\.id/.test(source));
   assert.ok(/type="submit"/.test(source));
   assert.ok(!/target="_blank"/.test(source));
 });
