@@ -1,5 +1,7 @@
 //! Local IT Desk server library.
 
+/// Offline administrator recovery command and transaction boundary.
+pub mod admin_cli;
 /// Local account roles and authentication foundation.
 pub mod auth;
 /// Validated environment-backed runtime configuration.

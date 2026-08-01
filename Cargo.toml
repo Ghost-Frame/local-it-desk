@@ -45,3 +45,5 @@ infer = "0.16"
 # Random session tokens and encoding.
 rand = "0.9"
 base64 = "0.22"
+clap = { version = "4", features = ["derive"] }
+rpassword = "7"
