@@ -7,7 +7,7 @@ use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Multipart, Path, State};
 use axum::http::StatusCode;
 use axum::http::header::{
-    CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_TYPE, HeaderName, HeaderValue,
+    CACHE_CONTROL, CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE, HeaderName, HeaderValue,
 };
 use axum::response::Response;
 use axum::routing::{get, post};
@@ -17,6 +17,7 @@ use rusqlite::types::Type;
 use rusqlite::{Connection, OptionalExtension, Row, TransactionBehavior, params};
 use sha2::{Digest, Sha256};
 use tokio::io::AsyncWriteExt;
+use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
 use super::AppState;
@@ -137,13 +138,17 @@ async fn download_attachment(
     })
     .await?;
     let path = safe_stored_path(&state.config.upload_dir, &attachment.stored_name)?;
-    let bytes = tokio::fs::read(path)
+    let file = tokio::fs::File::open(path)
         .await
         .map_err(|error| match error.kind() {
             std::io::ErrorKind::NotFound => AppError::NotFound,
             _ => AppError::Io(error),
         })?;
-    let mut response = Response::new(Body::from(bytes));
+    let metadata = file.metadata().await?;
+    if !metadata.is_file() || metadata.len() != attachment.size_bytes {
+        return Err(AppError::NotFound);
+    }
+    let mut response = Response::new(Body::from_stream(ReaderStream::new(file)));
     response.headers_mut().insert(
         CONTENT_TYPE,
         HeaderValue::from_str(&attachment.media_type)
@@ -153,6 +158,11 @@ async fn download_attachment(
         CONTENT_DISPOSITION,
         HeaderValue::from_str(&attachment_disposition(&attachment.original_name))
             .map_err(|_| AppError::Internal("generated download header was invalid".to_string()))?,
+    );
+    response.headers_mut().insert(
+        CONTENT_LENGTH,
+        HeaderValue::from_str(&metadata.len().to_string())
+            .map_err(|_| AppError::Internal("stored file size was invalid".to_string()))?,
     );
     response
         .headers_mut()
