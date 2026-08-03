@@ -2,3 +2,5 @@
 
 /// Privacy-bounded request audit context.
 pub mod audit;
+/// Uniform browser hardening applied to API and static-file responses.
+pub mod security_headers;
