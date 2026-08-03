@@ -102,6 +102,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 pnpm --dir frontend check
 bash scripts/container-contract.sh
 bash scripts/compose-contract.sh
+bash scripts/https-smoke.sh
 bash scripts/check-runbook.sh
 bash scripts/smoke-compose.sh
 bash scripts/check-dependencies.sh

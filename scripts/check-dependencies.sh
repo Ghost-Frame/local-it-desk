@@ -12,6 +12,26 @@ readonly dependency_files=(
   frontend/pnpm-lock.yaml
 )
 
+# Verifies that the committed Caddy module graph matches downloaded module content.
+(
+  cd caddy
+  go mod verify
+)
+
+# Direct Caddy modules are limited to the reviewed edge server and this local wrapper.
+mapfile -t caddy_direct_modules < <(
+  cd caddy
+  go list -mod=readonly -m -f '{{if not .Indirect}}{{.Path}}{{end}}' all | sed '/^$/d' | sort
+)
+readonly -a expected_caddy_direct_modules=(
+  github.com/caddyserver/caddy/v2
+  local-it-desk/caddy
+)
+if [[ "${caddy_direct_modules[*]}" != "${expected_caddy_direct_modules[*]}" ]]; then
+  printf 'unexpected direct Caddy module set: %s\n' "${caddy_direct_modules[*]}" >&2
+  exit 1
+fi
+
 # Package-name fragments reserved for excluded identity, desktop, messaging, and AI surfaces.
 readonly forbidden_pattern='@tauri-apps|vite-plugin-pwa|workbox-|openidconnect|jsonwebtoken|tungstenite|web-push|vapid|async-openai|anthropic|modelcontextprotocol|(^|[-_/])mcp([-_/]|$)'
 

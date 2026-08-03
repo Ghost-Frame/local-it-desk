@@ -2,6 +2,7 @@
   "name": "local-it-desk-frontend",
   "private": true,
   "version": "0.1.1",
+  "packageManager": "pnpm@11.18.0",
   "type": "module",
   "scripts": {
     "dev": "vite",

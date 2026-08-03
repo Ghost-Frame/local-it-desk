@@ -33,3 +33,9 @@ rejection contract. Executable source, manifests, routes, public types,
 navigation, environment examples, and ordinary documentation must remain free
 of the excluded surfaces. Verification reports the exact file and line for
 every finding.
+
+The HTTPS edge directly depends only on Caddy and a local wrapper. Caddy's
+committed indirect Go graph can contain packages used by Caddy internals, but
+the release image rejects registered authentication, metrics, file-server,
+template, tracing, and other unused edge modules. The fixed Caddyfile also
+disables automatic HTTPS and loads only operator-provided certificate files.

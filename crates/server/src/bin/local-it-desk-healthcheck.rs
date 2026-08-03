@@ -1,7 +1,7 @@
 //! Dependency-light container readiness probe for the local HTTP server.
 
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
+use std::net::{IpAddr, SocketAddr, TcpStream};
 use std::process::ExitCode;
 use std::time::Duration;
 
@@ -24,9 +24,7 @@ fn check_readiness() -> Result<(), String> {
         .set_write_timeout(Some(timeout))
         .map_err(|error| format!("could not set readiness write timeout: {error}"))?;
     stream
-        .write_all(
-            b"GET /health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nAccept: application/json\r\n\r\n",
-        )
+        .write_all(readiness_request(address).as_bytes())
         .map_err(|error| format!("readiness request failed: {error}"))?;
 
     let mut response = String::new();
@@ -35,6 +33,17 @@ fn check_readiness() -> Result<(), String> {
         .read_to_string(&mut response)
         .map_err(|error| format!("readiness response failed: {error}"))?;
     validate_response(&response)
+}
+
+/// Builds a loopback-compatible readiness request for the configured target.
+fn readiness_request(address: SocketAddr) -> String {
+    let host = match address.ip() {
+        IpAddr::V4(ip) => ip.to_string(),
+        IpAddr::V6(ip) => format!("[{ip}]"),
+    };
+    format!(
+        "GET /health/ready HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\nAccept: application/json\r\n\r\n"
+    )
 }
 
 /// Validates the bounded HTTP response without accepting redirects or degraded states.
@@ -66,7 +75,7 @@ fn main() -> ExitCode {
 /// Focused parser contracts for unhealthy and malformed readiness responses.
 #[cfg(test)]
 mod tests {
-    use super::validate_response;
+    use super::{readiness_request, validate_response};
 
     /// Accepts only the exact successful readiness state.
     #[test]
@@ -77,6 +86,22 @@ mod tests {
             )
             .is_ok()
         );
+    }
+
+    /// Uses the IPv4 target as the Host header so loopback-only routes match.
+    #[test]
+    fn request_uses_ipv4_target_host() {
+        let address = "127.0.0.1:8080".parse().expect("valid test address");
+
+        assert!(readiness_request(address).contains("\r\nHost: 127.0.0.1\r\n"));
+    }
+
+    /// Brackets an IPv6 target so the Host header remains valid HTTP syntax.
+    #[test]
+    fn request_brackets_ipv6_target_host() {
+        let address = "[::1]:8080".parse().expect("valid test address");
+
+        assert!(readiness_request(address).contains("\r\nHost: [::1]\r\n"));
     }
 
     /// Rejects a non-success response even when its body claims readiness.

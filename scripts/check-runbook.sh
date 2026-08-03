@@ -20,6 +20,7 @@ readonly required_paths=(
   docs/EXCLUDED-SURFACES.md
   docs/ROSTER-IMPORT.md
   scripts/restore-compose.sh
+  scripts/https-smoke.sh
   scripts/smoke-compose.sh
 )
 
@@ -66,7 +67,7 @@ check_shell_blocks() {
   while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ "$line" == '~~~sh runbook-check' ]]; then
       ((block_count += 1))
-      block_file="$output_dir/$(basename "$source_file").$block_count.sh"
+      block_file="$output_dir/${source_file##*/}.$block_count.sh"
       printf '#!/usr/bin/env bash\nset -euo pipefail\n' > "$block_file"
       in_block=1
       continue
@@ -121,6 +122,7 @@ grep -Fqi 'Host migration and safe stop' docs/RUNBOOK.md || fail 'runbook lacks 
 grep -Fqi 'Sanitized support bundle' docs/RUNBOOK.md || fail 'runbook lacks sanitized diagnostics'
 
 bash -n scripts/restore-compose.sh
+bash -n scripts/https-smoke.sh
 bash -n scripts/smoke-compose.sh
 "${container_engine}" compose --env-file .env.example -f compose.yaml config --quiet
 "${container_engine}" compose --env-file .env.example -f compose.yaml -f compose.https.yaml config --quiet

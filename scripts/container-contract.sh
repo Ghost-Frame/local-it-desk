@@ -48,13 +48,14 @@ fi
 [[ "$("${container_engine}" image inspect "${image_ref}" --format '{{json .Config.Healthcheck.Test}}')" == *'/app/local-it-desk-healthcheck'* ]]
 
 # Runtime filesystem contains only release artifacts and grants writes to explicit data paths.
-# The quoted expressions belong to the in-container shell and must not expand here.
+  # The quoted expressions belong to the in-container shell and must not expand here.
 # shellcheck disable=SC2016
 "${container_engine}" run --rm --entrypoint /bin/sh "${image_ref}" -eu -c '
   test "$(id -u)" -ne 0
   test -x /app/local-it-desk
   test -x /app/local-it-desk-admin
   test -x /app/local-it-desk-healthcheck
+  test -x /app/caddy
   test -s /app/frontend/index.html
   test ! -e /workspace
   test ! -e /app/Cargo.toml
@@ -69,6 +70,13 @@ fi
   test -w /state/backups
   test ! -w /app
 '
+
+# Registered edge modules exclude Caddy product surfaces unused by the fixed configuration.
+caddy_modules="$("${container_engine}" run --rm --entrypoint /app/caddy "${image_ref}" list-modules)"
+if grep -Eq '^(admin\.api\.metrics|http\.authentication\.|http\.handlers\.(acme_server|authentication|file_server|intercept|map|metrics|push|request_body|templates|tracing)|http\.matchers\.file|http\.reverse_proxy\.transport\.fastcgi|tls\.stek\.distributed)$' <<<"${caddy_modules}"; then
+  printf 'Runtime image contains an excluded Caddy module.\n' >&2
+  exit 1
+fi
 
 # The probe must fail closed when no readiness listener is reachable.
 if "${container_engine}" run --rm \

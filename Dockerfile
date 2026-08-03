@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24.4.1-bookworm-slim AS frontend-builder
+FROM node:24.18.1-bookworm-slim AS frontend-builder
 
-ARG PNPM_VERSION=11.3.0
+ARG PNPM_VERSION=11.18.0
 WORKDIR /workspace/frontend
 RUN npm install --global "pnpm@${PNPM_VERSION}"
 COPY frontend/package.json frontend/pnpm-lock.yaml ./
@@ -17,6 +17,21 @@ COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ ./crates/
 RUN cargo build --release --locked --bins
 
+FROM golang:1.26.5-alpine3.24 AS caddy-builder
+
+WORKDIR /workspace/caddy
+COPY caddy/go.mod caddy/go.sum ./
+RUN go mod download \
+    && go mod verify
+COPY caddy/main.go ./
+RUN CGO_ENABLED=0 go build \
+    -mod=readonly \
+    -trimpath \
+    -ldflags="-s -w" \
+    -tags="nobadger,nomysql,nopgx" \
+    -o /usr/local/bin/caddy \
+    .
+
 FROM debian:12.15-slim AS runtime
 
 LABEL org.opencontainers.image.title="Local IT Desk" \
@@ -24,7 +39,6 @@ LABEL org.opencontainers.image.title="Local IT Desk" \
       org.opencontainers.image.version="0.1.1"
 
 RUN apt-get update \
-    && apt-get upgrade --yes \
     && apt-get install --yes --no-install-recommends ca-certificates \
     && apt-get clean \
     && find /var/lib/apt/lists -type f -delete \
@@ -38,6 +52,7 @@ RUN apt-get update \
 COPY --from=rust-builder --chown=root:root /workspace/target/release/local-it-desk /app/local-it-desk
 COPY --from=rust-builder --chown=root:root /workspace/target/release/local-it-desk-admin /app/local-it-desk-admin
 COPY --from=rust-builder --chown=root:root /workspace/target/release/local-it-desk-healthcheck /app/local-it-desk-healthcheck
+COPY --from=caddy-builder --chown=root:root /usr/local/bin/caddy /app/caddy
 COPY --from=frontend-builder --chown=root:root /workspace/frontend/dist/ /app/frontend/
 
 ENV LISTEN_ADDR="0.0.0.0:3000" \

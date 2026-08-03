@@ -6,7 +6,7 @@ set -euo pipefail
 readonly forbidden_pattern='(/api/(channels|dms|documents|changelog|push-subscriptions|api-tokens|unread)|/ws([^[:alnum:]_]|$)|AuthCallback|Channel(Store|View|Message|Member)|DmThread|DirectMessage|DocumentVersion|ChangelogEntry|PushSubscription|ApiToken|OIDC|Authentik|Tauri|WebSocket|VitePWA|Workbox|modelcontextprotocol|async-openai|anthropic)'
 
 # Files that explain or test the exclusion contract and may name excluded surfaces.
-readonly allowed_pattern='^(docs/EXCLUDED-SURFACES\.md|crates/server/tests/router_contract\.rs|frontend/tests/surface-contract\.test\.ts|scripts/check-dependencies\.sh|scripts/check-forbidden-surfaces\.sh|Cargo\.lock|frontend/pnpm-lock\.yaml)$'
+readonly allowed_pattern='^(docs/EXCLUDED-SURFACES\.md|crates/server/tests/router_contract\.rs|frontend/tests/surface-contract\.test\.ts|scripts/check-dependencies\.sh|scripts/check-forbidden-surfaces\.sh|Cargo\.lock|caddy/go\.(mod|sum)|frontend/pnpm-lock\.yaml)$'
 
 # Exact deny-only route needed to keep the browser fallback from serving the retired socket path.
 readonly allowed_deny_route='.route("/ws", any(not_found));'
