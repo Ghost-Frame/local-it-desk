@@ -118,7 +118,7 @@ done < <(cargo metadata --format-version 1 --locked | jq -r '[.packages[] | sele
 
 while IFS= read -r frontend_license; do
   case "${frontend_license}" in
-    Apache-2.0|BSD-2-Clause|BSD-3-Clause|ISC|MIT|MPL-2.0)
+    0BSD|Apache-2.0|BSD-2-Clause|BSD-3-Clause|ISC|MIT|MPL-2.0)
       ;;
     *)
       printf 'Release rights check failed: unreviewed frontend license %s.\n' "${frontend_license}" >&2
