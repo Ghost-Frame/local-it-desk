@@ -256,11 +256,11 @@ async fn change_password(
 ) -> AppResult<Response> {
     let session_ttl_days = state.config.session_ttl_days;
     let result = db::interact(&state.pool, move |connection| {
-        let current =
-            user::find_by_id(connection, identity.user_id)?.ok_or(AppError::Unauthorized)?;
-        user::authenticate(connection, &current.username, &request.current_password)?;
         let password_hash = password::hash_password(&request.new_password)?;
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if !user::confirms_password(&transaction, identity.user_id, &request.current_password)? {
+            return Err(AppError::Unauthorized);
+        }
         let now = timestamp();
         let updated = transaction.execute(
             "UPDATE users

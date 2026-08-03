@@ -379,7 +379,7 @@ async fn invalid_origin_and_repeated_failures_are_rejected() {
 /// Confirms session bootstrap, password rotation, and logout revoke old cookies.
 #[tokio::test]
 async fn password_change_and_logout_rotate_session_state() {
-    let (app, _pool, _temp) = test_app().await;
+    let (app, pool, _temp) = test_app().await;
     let setup = send(
         &app,
         "POST",
@@ -409,6 +409,18 @@ async fn password_change_and_logout_rotate_session_state() {
     assert_eq!(changed.status, StatusCode::OK);
     let replacement_cookie = cookie_pair(changed.set_cookie.as_deref().expect("new cookie"));
     assert_ne!(original_cookie, replacement_cookie);
+    let last_login_at = db::interact(&pool, |connection| {
+        connection
+            .query_row(
+                "SELECT last_login_at FROM users WHERE username = 'teacher.admin'",
+                [],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .map_err(Into::into)
+    })
+    .await
+    .expect("password-change login metadata");
+    assert_eq!(last_login_at, None);
 
     let old_session = send(
         &app,
