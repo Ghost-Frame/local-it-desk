@@ -6,6 +6,7 @@ import { useRouter } from "vue-router";
 import AuditLogTable from "@/components/admin/AuditLogTable.vue";
 import OnboardingPanel from "@/components/admin/OnboardingPanel.vue";
 import RosterImport from "@/components/admin/RosterImport.vue";
+import StaffQuickAdd from "@/components/admin/StaffQuickAdd.vue";
 import UserEditor from "@/components/admin/UserEditor.vue";
 import UserRow from "@/components/admin/UserRow.vue";
 import AppLayout from "@/components/layout/AppLayout.vue";
@@ -39,6 +40,8 @@ const users = ref<User[]>([]);
 const auditEntries = ref<AuditEntry[]>([]);
 /** One-time credentials retained only until explicit dismissal. */
 const onboardingCredentials = ref<OneTimeCredential[]>([]);
+/** Same-origin address printed on one-time staff login cards. */
+const deskUrl = window.location.origin;
 /** Account operation identifier used to prevent duplicate submissions. */
 const busyUserId = ref<string | null>(null);
 /** Whether account listing is loading. */
@@ -183,7 +186,7 @@ onMounted(() => {
         <p class="rounded-lg bg-[var(--color-surface-tertiary)] px-4 py-3 text-sm"><strong>{{ users.length }}</strong> local accounts</p>
       </header>
 
-      <OnboardingPanel v-if="onboardingCredentials.length" :credentials="onboardingCredentials" @dismiss="dismissOnboarding" />
+      <OnboardingPanel v-if="onboardingCredentials.length" :credentials="onboardingCredentials" :desk-url="deskUrl" @dismiss="dismissOnboarding" />
       <p v-if="message" class="rounded-lg border p-3 text-sm" :style="{ borderColor: 'var(--color-border-default)' }" role="status">{{ message }}</p>
 
       <nav class="flex gap-1 overflow-x-auto border-b" :style="{ borderColor: 'var(--color-border-default)' }" role="tablist" aria-label="Administration sections">
@@ -200,6 +203,7 @@ onMounted(() => {
       </div>
 
       <div v-else-if="activeTab === 'staff'" id="panel-staff" class="space-y-5" role="tabpanel" aria-labelledby="tab-staff">
+        <StaffQuickAdd :existing-usernames="users.map((account) => account.username)" @imported="rosterImported" />
         <UserEditor :busy="busyUserId === 'create'" @create="createAccount" />
         <p v-if="loadingUsers" role="status">Loading staff accounts…</p>
         <div v-else class="grid gap-3"><UserRow v-for="account in users" :key="account.id" :user="account" :current-user-id="authStore.user?.id ?? ''" :final-active-administrator="isFinalActiveAdministrator(users, account.id)" :busy="busyUserId === account.id" @update="updateAccount" @reset="resetPassword" @revoke="revokeSessions" /></div>

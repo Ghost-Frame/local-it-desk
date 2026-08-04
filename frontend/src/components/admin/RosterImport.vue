@@ -73,8 +73,8 @@ async function applyRoster(): Promise<void> {
 
 <template>
   <section class="rounded-2xl border bg-[var(--color-surface-secondary)] p-5" :style="{ borderColor: 'var(--color-border-default)' }">
-    <p class="font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-accent-primary)]">Bulk onboarding</p>
-    <h2 class="mt-2 text-xl font-bold">Import a staff roster</h2>
+    <p class="font-mono text-xs uppercase tracking-[0.18em] text-[var(--color-accent-primary)]">Advanced onboarding</p>
+    <h2 class="mt-2 text-xl font-bold">Import a CSV roster</h2>
     <p class="mt-2 max-w-3xl text-sm text-[var(--color-text-secondary)]">Choose a CSV with the columns <code>username,display_name,role,email</code>. Preview checks every row. Apply creates every account or none of them.</p>
     <label class="mt-5 grid max-w-xl gap-2 text-sm font-semibold">
       Roster CSV

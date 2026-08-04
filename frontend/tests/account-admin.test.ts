@@ -120,9 +120,28 @@ test("one-time onboarding material can be copied or printed without browser pers
   assert.ok(/temporary_password/.test(panel));
   assert.ok(/clipboard\.writeText/.test(panel));
   assert.ok(/window\.print/.test(panel));
+  assert.ok(/loginQrPayload\(props\.deskUrl\)/.test(panel));
+  assert.ok(/QR code for the desk address only/.test(panel));
   for (const forbidden of ["localstorage", "sessionstorage", "indexeddb"]) {
     assert.equal(normalized.includes(forbidden), false, `onboarding source contains ${forbidden}`);
   }
+});
+
+test("guided setup keeps branding, administrator, staff, and finish as explicit stages", () => {
+  const setup = source("../../src/views/SetupView.vue");
+  const quickAdd = source("../../src/components/admin/StaffQuickAdd.vue");
+
+  for (const phrase of ["Step {{ step }} of 4", "Name the desk", "Create the technician account", "Add staff who can submit requests", "The desk is ready."]) {
+    assert.ok(setup.includes(phrase), `setup is missing ${phrase}`);
+  }
+  assert.ok(/authStore\.setup/.test(setup));
+  assert.ok(/api\.updateAdminSettings/.test(setup));
+  assert.ok(/authStore\.refreshPublicConfig/.test(setup));
+  assert.ok(/StaffQuickAdd/.test(setup));
+  assert.ok(/buildRequesterRosterCsv/.test(quickAdd));
+  assert.ok(/previewRoster/.test(quickAdd));
+  assert.ok(/applyRoster/.test(quickAdd));
+  assert.ok(/requester/.test(quickAdd));
 });
 
 test("roster UI displays preview errors and waits for a valid preview before apply", () => {
