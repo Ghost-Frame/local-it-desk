@@ -102,10 +102,11 @@ jobs:
           CONTAINER_ENGINE: docker
         run: |
           bash scripts/compose-contract.sh
+          bash scripts/desk-contract.sh
           bash scripts/check-runbook.sh
       - name: Check shell scripts
         run: |
-          find scripts tests/e2e/local-only -type f -name '*.sh' -print0 \
+          find scripts tests/e2e/local-only -type f \( -name '*.sh' -o -name desk \) -print0 \
             | xargs -0 shellcheck
       - name: Scan committed source for secrets
         uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0

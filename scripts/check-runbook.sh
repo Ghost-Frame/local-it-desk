@@ -20,6 +20,9 @@ readonly required_paths=(
   docs/EXCLUDED-SURFACES.md
   docs/ROSTER-IMPORT.md
   scripts/restore-compose.sh
+  scripts/desk
+  scripts/desk.ps1
+  scripts/desk-contract.sh
   scripts/https-smoke.sh
   scripts/smoke-compose.sh
 )
@@ -122,6 +125,8 @@ grep -Fqi 'Host migration and safe stop' docs/RUNBOOK.md || fail 'runbook lacks 
 grep -Fqi 'Sanitized support bundle' docs/RUNBOOK.md || fail 'runbook lacks sanitized diagnostics'
 
 bash -n scripts/restore-compose.sh
+bash -n scripts/desk
+bash -n scripts/desk-contract.sh
 bash -n scripts/https-smoke.sh
 bash -n scripts/smoke-compose.sh
 "${container_engine}" compose --env-file .env.example -f compose.yaml config --quiet

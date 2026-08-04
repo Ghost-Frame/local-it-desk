@@ -17,6 +17,8 @@
 /branding/
 /backups/
 /certs/
+/exports/
+/support/
 *.db
 *.db-shm
 *.db-wal
