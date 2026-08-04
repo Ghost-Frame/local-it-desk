@@ -24,8 +24,9 @@ services:
         restart: true
     environment:
       HEALTHCHECK_ADDR: 127.0.0.1:8080
+      HTTPS_HOST: "${HTTPS_HOST:-helpdesk.local}"
       XDG_CONFIG_HOME: /tmp/config
-      XDG_DATA_HOME: /tmp/data
+      XDG_DATA_HOME: /caddy-data
     ports:
       - name: school-https
         target: 8443
@@ -37,10 +38,9 @@ services:
         source: ./deploy/Caddyfile
         target: /etc/caddy/Caddyfile
         read_only: true
-      - type: bind
-        source: ./certs
-        target: /certs
-        read_only: true
+      - type: volume
+        source: desk-caddy-data
+        target: /caddy-data
     tmpfs:
       - /tmp:rw,noexec,nosuid,nodev,size=50331648,mode=1777
     healthcheck:
@@ -56,3 +56,6 @@ services:
         max-file: "3"
     networks:
       - desk-internal
+
+volumes:
+  desk-caddy-data:

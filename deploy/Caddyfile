@@ -1,14 +1,14 @@
 {
 	admin off
-	auto_https off
+	auto_https disable_redirects
 }
 
 http://127.0.0.1:8080 {
 	reverse_proxy app:3000
 }
 
-:8443 {
-	tls /certs/tls.crt /certs/tls.key
+https://{$HTTPS_HOST}:8443 {
+	tls internal
 	encode zstd gzip
 	header {
 		-X-Powered-By

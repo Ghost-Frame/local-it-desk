@@ -46,6 +46,7 @@ RUN apt-get update \
     && useradd --uid 10001 --gid 10001 --system --no-create-home --home-dir /nonexistent --shell /usr/sbin/nologin localdesk \
     && install -d -o root -g root -m 0755 /app \
     && install -d -o 10001 -g 10001 -m 0750 /state \
+    && install -d -o 10001 -g 10001 -m 0700 /caddy-data \
     && install -d -o 10001 -g 10001 -m 0750 /state/current /state/backups \
     && install -d -o 10001 -g 10001 -m 0750 /state/current/data /state/current/attachments /state/current/branding
 

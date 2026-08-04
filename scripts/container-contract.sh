@@ -68,11 +68,14 @@ fi
   test -w /state/current/attachments
   test -w /state/current/branding
   test -w /state/backups
+  test -w /caddy-data
   test ! -w /app
 '
 
 # Registered edge modules exclude Caddy product surfaces unused by the fixed configuration.
 caddy_modules="$("${container_engine}" run --rm --entrypoint /app/caddy "${image_ref}" list-modules)"
+grep -Fxq 'pki' <<<"${caddy_modules}"
+grep -Fxq 'tls.issuance.internal' <<<"${caddy_modules}"
 if grep -Eq '^(admin\.api\.metrics|http\.authentication\.|http\.handlers\.(acme_server|authentication|file_server|intercept|map|metrics|push|request_body|templates|tracing)|http\.matchers\.file|http\.reverse_proxy\.transport\.fastcgi|tls\.stek\.distributed)$' <<<"${caddy_modules}"; then
   printf 'Runtime image contains an excluded Caddy module.\n' >&2
   exit 1

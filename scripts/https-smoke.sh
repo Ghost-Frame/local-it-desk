@@ -12,6 +12,11 @@ readonly https_port="${HTTPS_SMOKE_PORT:-$((24000 + ($$ % 10000)))}"
 readonly image_ref="${HTTPS_SMOKE_IMAGE:-local-it-desk:verify}"
 # Loopback HTTPS origin used for every smoke request.
 readonly base_url="https://localhost:${https_port}"
+# Private retained evidence directory for the exported public trust root.
+evidence_dir="$(mktemp -d "${TMPDIR:-/tmp}/local-it-desk-https-smoke.XXXXXX")"
+readonly evidence_dir
+# Exact public root path copied from Caddy for trust verification.
+readonly root_certificate="${evidence_dir}/local-it-desk-root.crt"
 # Compose arguments shared by every lifecycle command.
 readonly -a compose_args=(
   --project-name "${compose_project}"
@@ -39,28 +44,17 @@ fail() {
 }
 
 command -v curl >/dev/null
-command -v openssl >/dev/null
+command -v sha256sum >/dev/null
 "${container_engine}" compose version >/dev/null
 "${container_engine}" image inspect "${image_ref}" >/dev/null
 [[ "${https_port}" =~ ^[0-9]+$ ]] || fail 'HTTPS_SMOKE_PORT must be numeric'
 (( https_port >= 1024 && https_port <= 65535 )) || fail 'HTTPS_SMOKE_PORT must be between 1024 and 65535'
 
-if [[ -e certs/tls.crt || -e certs/tls.key ]]; then
-  [[ -s certs/tls.crt && -s certs/tls.key ]] || fail 'certs must contain both non-empty tls.crt and tls.key'
-else
-  mkdir -p certs
-  openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
-    -subj '/CN=localhost' \
-    -addext 'subjectAltName=DNS:localhost' \
-    -keyout certs/tls.key \
-    -out certs/tls.crt \
-    >/dev/null 2>&1
-fi
-
 export LOCAL_IT_DESK_IMAGE="${image_ref}"
 export HTTPS_BIND_ADDRESS='127.0.0.1'
 export HTTPS_PORT="${https_port}"
 export HTTPS_ORIGIN="${base_url}"
+export HTTPS_HOST='localhost'
 
 [[ -z "$("${container_engine}" compose "${compose_args[@]}" ps --all --quiet)" ]] \
   || fail "project ${compose_project} already contains containers"
@@ -91,13 +85,20 @@ done
 [[ "${app_health}" == 'healthy' && "${caddy_health}" == 'healthy' ]] \
   || fail "services did not become healthy: app=${app_health}, caddy=${caddy_health}"
 
+# Public local CA material used by managed clients to trust this exact deployment.
+"${container_engine}" compose "${compose_args[@]}" exec -T caddy \
+  cat /caddy-data/caddy/pki/authorities/local/root.crt >"${root_certificate}"
+[[ -s "${root_certificate}" ]] || fail 'Caddy did not create an exportable public root certificate'
+root_fingerprint_before="$(sha256sum "${root_certificate}" | awk '{print $1}')"
+readonly root_fingerprint_before
+
 # Exact readiness payload returned through the TLS edge.
-ready_body="$(curl --insecure --fail --silent --show-error --http2 "${base_url}/health/ready")"
+ready_body="$(curl --cacert "${root_certificate}" --fail --silent --show-error --http2 "${base_url}/health/ready")"
 readonly ready_body
 [[ "${ready_body}" == '{"status":"ready"}' ]] || fail 'TLS readiness payload was not exact'
 
 # Response headers proving browser hardening survived the reverse proxy.
-response_headers="$(curl --insecure --fail --silent --show-error --http2 --head "${base_url}/")"
+response_headers="$(curl --cacert "${root_certificate}" --fail --silent --show-error --http2 --head "${base_url}/")"
 readonly response_headers
 grep -Eqi '^HTTP/2 200' <<<"${response_headers}" || fail 'browser shell did not use HTTP/2 with status 200'
 grep -Eqi '^content-security-policy:' <<<"${response_headers}" || fail 'Content-Security-Policy is absent'
@@ -106,4 +107,22 @@ grep -Eqi '^referrer-policy: no-referrer' <<<"${response_headers}" || fail 'Refe
 grep -Eqi '^x-content-type-options: nosniff' <<<"${response_headers}" || fail 'nosniff protection is absent'
 grep -Eqi '^x-frame-options: DENY' <<<"${response_headers}" || fail 'frame denial is absent'
 
-printf 'HTTPS Compose smoke passed for %s with image %s.\n' "${compose_project}" "${image_ref}"
+# Recreating only the TLS edge must retain the exact private CA in its named volume.
+"${container_engine}" compose "${compose_args[@]}" up --detach --no-build --force-recreate caddy
+recreated_caddy_container="$("${container_engine}" compose "${compose_args[@]}" ps --quiet caddy)"
+readonly recreated_caddy_container
+for _attempt in $(seq 1 30); do
+  caddy_health="$("${container_engine}" inspect "${recreated_caddy_container}" --format '{{.State.Health.Status}}')"
+  [[ "${caddy_health}" != 'unhealthy' ]] || fail 'recreated Caddy service became unhealthy'
+  [[ "${caddy_health}" == 'healthy' ]] && break
+  sleep 1
+done
+[[ "${caddy_health}" == 'healthy' ]] || fail 'recreated Caddy service did not become healthy'
+root_fingerprint_after="$("${container_engine}" compose "${compose_args[@]}" exec -T caddy \
+  sha256sum /caddy-data/caddy/pki/authorities/local/root.crt | awk '{print $1}')"
+readonly root_fingerprint_after
+[[ "${root_fingerprint_after}" == "${root_fingerprint_before}" ]] \
+  || fail 'Caddy rotated its local CA during service recreation'
+
+printf 'HTTPS Compose smoke passed for %s with image %s; public trust root retained at %s.\n' \
+  "${compose_project}" "${image_ref}" "${root_certificate}"

@@ -53,14 +53,23 @@ assert_json "${school_json}" '.services.app.environment.COOKIE_SECURE == "true" 
 assert_json "${school_json}" '.services.caddy.image == .services.app.image' 'Caddy must reuse the reviewed Local IT Desk image'
 assert_json "${school_json}" '.services.caddy.entrypoint == ["/app/caddy"] and .services.caddy.command == ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]' 'Caddy must use the reviewed in-image binary and fixed configuration command'
 assert_json "${school_json}" '.services.caddy.user == "10001:10001" and .services.caddy.read_only == true and .services.caddy.cap_drop == ["ALL"] and ((.services.caddy.cap_add // []) | length == 0) and (.services.caddy.security_opt | index("no-new-privileges:true"))' 'Caddy must run non-root with a read-only hardened filesystem and no Linux capabilities'
-assert_json "${school_json}" '.services.caddy.environment.HEALTHCHECK_ADDR == "127.0.0.1:8080" and .services.caddy.environment.XDG_CONFIG_HOME == "/tmp/config" and .services.caddy.environment.XDG_DATA_HOME == "/tmp/data" and (.services.caddy.tmpfs | length == 1) and (.services.caddy.tmpfs[0] | startswith("/tmp:"))' 'Caddy writable state must stay beneath one cross-engine ephemeral tmpfs'
+assert_json "${school_json}" '.services.caddy.environment.HEALTHCHECK_ADDR == "127.0.0.1:8080" and .services.caddy.environment.HTTPS_HOST == "helpdesk.local" and .services.caddy.environment.XDG_CONFIG_HOME == "/tmp/config" and .services.caddy.environment.XDG_DATA_HOME == "/caddy-data" and (.services.caddy.tmpfs | length == 1) and (.services.caddy.tmpfs[0] | startswith("/tmp:"))' 'Caddy must receive the exact HTTPS host and keep only disposable configuration beneath tmpfs'
 assert_json "${school_json}" '.services.caddy.ports | length == 1 and .[0].target == 8443 and .[0].published == "443"' 'school profile must publish only the configured HTTPS edge'
-assert_json "${school_json}" '[.services.caddy.volumes[] | select(.type == "bind") | {target, read_only}] | sort_by(.target) == [{"target":"/certs","read_only":true},{"target":"/etc/caddy/Caddyfile","read_only":true}]' 'Caddy configuration and certificates must be read-only bind mounts'
+assert_json "${school_json}" '[.services.caddy.volumes[] | {type, source, target, read_only: (.read_only // false)}] | sort_by(.target) == [{"type":"volume","source":"desk-caddy-data","target":"/caddy-data","read_only":false},{"type":"bind","source":"'"${PWD}"'/deploy/Caddyfile","target":"/etc/caddy/Caddyfile","read_only":true}]' 'Caddy must persist its private PKI separately and bind only its read-only configuration'
+assert_json "${school_json}" '.volumes | keys == ["desk-caddy-data", "desk-state"]' 'school profile must persist only application state and isolated Caddy PKI'
 assert_json "${school_json}" '.services.caddy.healthcheck.test == ["CMD", "/app/local-it-desk-healthcheck"]' 'Caddy must use the reviewed loopback proxy healthcheck binary'
 assert_json "${school_json}" '[.services[] | (.privileged // false)] | all(. == false)' 'privileged mode is forbidden'
 assert_json "${school_json}" '[.services[] | (.network_mode // "")] | all(. != "host")' 'host networking is forbidden'
 assert_json "${school_json}" '[.services[].volumes[]?.source // ""] | all(contains("docker.sock") | not)' 'Docker socket mounts are forbidden'
 assert_json "${school_json}" '[.services[] | has("healthcheck")] | all' 'every school service must have a healthcheck'
+
+# The fixed edge configuration must use Caddy internal PKI without operator leaf-key binds.
+grep -Fq -- 'tls internal' deploy/Caddyfile
+grep -Fq -- "{\$HTTPS_HOST}" deploy/Caddyfile
+if grep -Eq '(/certs|tls[[:space:]]+[^[:space:]]+\.crt[[:space:]]+[^[:space:]]+\.key)' deploy/Caddyfile compose.https.yaml; then
+  printf 'Compose contract failed: HTTPS configuration still depends on an exported leaf private key.\n' >&2
+  exit 1
+fi
 
 require_file scripts/restore-compose.sh
 [[ -x scripts/restore-compose.sh ]]
