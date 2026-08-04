@@ -166,3 +166,18 @@ test("requester components expose complete loading, empty, error, and keyboard-a
   assert.ok(/type="submit"/.test(combined));
   assert.ok(/:disabled=/.test(combined));
 });
+
+test("new request form keeps ordinary staff choices short and explicit", () => {
+  const form = readFileSync(new URL("../../src/components/tickets/TicketForm.vue", import.meta.url), "utf8");
+  const view = readFileSync(new URL("../../src/views/TicketsView.vue", import.meta.url), "utf8");
+
+  for (const phrase of ["What is wrong?", "Where is it?", "What happened?", "This is stopping a class", "Send request"]) {
+    assert.ok(form.includes(phrase), `request form is missing ${phrase}`);
+  }
+  assert.ok(/urgent\.value \? "urgent" : priority\.value/.test(form));
+  assert.ok(/Location or device:/.test(form));
+  assert.equal(/id="ticket-priority"/.test(form), false);
+  assert.ok(/<details/.test(form));
+  assert.ok(/Search and filter requests/.test(view));
+  assert.ok(/\+ New request/.test(view));
+});

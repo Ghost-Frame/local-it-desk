@@ -91,7 +91,7 @@ async function ticketCreated(ticket: Ticket): Promise<void> {
       <header class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-accent-primary)]">Staff help desk</p>
-          <h1 class="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Your support tickets</h1>
+          <h1 class="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">Your requests</h1>
           <p class="mt-2 max-w-2xl text-sm leading-6 text-[var(--color-text-secondary)]">
             Submit a named request, follow the technician’s progress, and keep all details with the ticket.
           </p>
@@ -101,50 +101,55 @@ async function ticketCreated(ticket: Ticket): Promise<void> {
           class="min-h-12 rounded-xl bg-[var(--color-accent-primary)] px-5 text-sm font-bold text-white shadow-sm hover:bg-[var(--color-accent-primary-hover)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--color-accent-primary)]"
           @click="formOpen = true"
         >
-          + New ticket
+          + New request
         </button>
       </header>
 
-      <form
-        class="grid gap-3 rounded-2xl border bg-[var(--color-surface-secondary)] p-4 sm:grid-cols-[minmax(12rem,1fr)_auto_auto_auto] sm:items-end"
+      <details
+        class="ticket-filters rounded-2xl border bg-[var(--color-surface-secondary)]"
         :style="{ borderColor: 'var(--color-border-default)' }"
-        aria-label="Filter your tickets"
-        @submit.prevent="applyFilters"
       >
-        <div>
-          <label for="ticket-search" class="block text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Search</label>
-          <input
-            id="ticket-search"
-            v-model="filterDraft.search"
-            type="search"
-            maxlength="100"
-            class="mt-2 min-h-11 w-full rounded-xl border bg-[var(--color-surface-primary)] px-3 outline-none focus:border-[var(--color-accent-primary)]"
-            placeholder="Title or details"
-          />
-        </div>
-        <div>
-          <label for="ticket-status-filter" class="block text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Status</label>
-          <select id="ticket-status-filter" v-model="filterDraft.status" class="mt-2 min-h-11 w-full rounded-xl border bg-[var(--color-surface-primary)] px-3 outline-none focus:border-[var(--color-accent-primary)]">
-            <option value="">All statuses</option>
-            <option value="new">New</option>
-            <option value="open">In progress</option>
-            <option value="waiting_on_requester">Waiting on you</option>
-            <option value="resolved">Resolved</option>
-            <option value="closed">Closed</option>
-          </select>
-        </div>
-        <div>
-          <label for="ticket-category-filter" class="block text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Category</label>
-          <select id="ticket-category-filter" v-model="filterDraft.categoryId" class="mt-2 min-h-11 w-full rounded-xl border bg-[var(--color-surface-primary)] px-3 outline-none focus:border-[var(--color-accent-primary)]">
-            <option value="">All categories</option>
-            <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
-          </select>
-        </div>
-        <div class="flex gap-2">
-          <button type="submit" class="min-h-11 flex-1 rounded-xl border bg-[var(--color-surface-elevated)] px-4 text-sm font-bold" :style="{ borderColor: 'var(--color-border-strong)' }">Apply</button>
-          <button type="button" class="min-h-11 rounded-xl px-3 text-sm font-semibold text-[var(--color-text-secondary)]" @click="clearFilters">Clear</button>
-        </div>
-      </form>
+        <summary class="min-h-11 cursor-pointer px-4 py-3 text-sm font-bold sm:hidden">Search and filter requests</summary>
+        <form
+          class="grid gap-3 p-4 sm:grid-cols-[minmax(12rem,1fr)_auto_auto_auto] sm:items-end"
+          aria-label="Filter your tickets"
+          @submit.prevent="applyFilters"
+        >
+          <div>
+            <label for="ticket-search" class="block text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Search</label>
+            <input
+              id="ticket-search"
+              v-model="filterDraft.search"
+              type="search"
+              maxlength="100"
+              class="mt-2 min-h-11 w-full rounded-xl border bg-[var(--color-surface-primary)] px-3 outline-none focus:border-[var(--color-accent-primary)]"
+              placeholder="Title or details"
+            />
+          </div>
+          <div>
+            <label for="ticket-status-filter" class="block text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Status</label>
+            <select id="ticket-status-filter" v-model="filterDraft.status" class="mt-2 min-h-11 w-full rounded-xl border bg-[var(--color-surface-primary)] px-3 outline-none focus:border-[var(--color-accent-primary)]">
+              <option value="">All statuses</option>
+              <option value="new">New</option>
+              <option value="open">In progress</option>
+              <option value="waiting_on_requester">Waiting on you</option>
+              <option value="resolved">Resolved</option>
+              <option value="closed">Closed</option>
+            </select>
+          </div>
+          <div>
+            <label for="ticket-category-filter" class="block text-xs font-bold uppercase tracking-wider text-[var(--color-text-secondary)]">Category</label>
+            <select id="ticket-category-filter" v-model="filterDraft.categoryId" class="mt-2 min-h-11 w-full rounded-xl border bg-[var(--color-surface-primary)] px-3 outline-none focus:border-[var(--color-accent-primary)]">
+              <option value="">All categories</option>
+              <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
+            </select>
+          </div>
+          <div class="flex gap-2">
+            <button type="submit" class="min-h-11 flex-1 rounded-xl border bg-[var(--color-surface-elevated)] px-4 text-sm font-bold" :style="{ borderColor: 'var(--color-border-strong)' }">Apply</button>
+            <button type="button" class="min-h-11 rounded-xl px-3 text-sm font-semibold text-[var(--color-text-secondary)]" @click="clearFilters">Clear</button>
+          </div>
+        </form>
+      </details>
 
       <div
         class="overflow-hidden rounded-2xl border bg-[var(--color-surface-elevated)] shadow-[var(--shadow-sm)] lg:grid lg:min-h-[42rem] lg:grid-cols-[23rem_minmax(0,1fr)]"
@@ -208,3 +213,12 @@ async function ticketCreated(ticket: Ticket): Promise<void> {
     </div>
   </AppLayout>
 </template>
+
+<style scoped>
+/** Keeps the filter form visible on wider screens even when the mobile disclosure is closed. */
+@media (min-width: 640px) {
+  .ticket-filters:not([open]) > form {
+    display: grid;
+  }
+}
+</style>

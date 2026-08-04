@@ -99,13 +99,15 @@ test("CSV preview and atomic apply send same-origin CSRF-protected text requests
   }
 });
 
-test("administration surface includes role-gated tabs and explicit lifecycle confirmations", () => {
+test("Manage Desk groups routine work and keeps advanced lifecycle controls", () => {
   const admin = source("../../src/views/AdminView.vue");
   const row = source("../../src/components/admin/UserRow.vue");
 
-  for (const label of ["Staff", "Roster import", "Sessions", "Audit"]) {
+  for (const label of ["Tickets", "People", "Desk", "Advanced", "Sessions", "Audit log"]) {
     assert.ok(admin.includes(label), `missing ${label} tab`);
   }
+  assert.ok(/Import a CSV roster instead/.test(admin));
+  assert.ok(/visibleTabs/.test(admin));
   assert.ok(/isAdministrator/.test(admin));
   assert.ok(/<dialog/.test(row));
   assert.ok(/showModal/.test(row));

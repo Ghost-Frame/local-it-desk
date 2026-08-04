@@ -13,19 +13,21 @@ import AppLayout from "@/components/layout/AppLayout.vue";
 import AdminTicketQueue from "@/components/tickets/AdminTicketQueue.vue";
 import { accountErrorMessage, isFinalActiveAdministrator } from "@/lib/account-admin";
 import { api } from "@/lib/api";
+import { landingPath } from "@/lib/router-guards";
 import { useAuthStore } from "@/stores/auth";
 import type { AuditEntry, CreateUserRequest, OneTimeCredential, UpdateUserRequest, User } from "@/types/api";
 
-/** Approved administrator tabs. */
-type AdminTab = "tickets" | "staff" | "roster" | "sessions" | "audit";
+/** Small set of top-level operator work areas. */
+type AdminTab = "tickets" | "people" | "desk" | "advanced";
+/** Advanced administrator area selected within its disclosure tab. */
+type AdvancedTab = "sessions" | "audit";
 
 /** Stable tab definitions for keyboard and screen-reader navigation. */
 const tabs: Array<{ id: AdminTab; label: string }> = [
-  { id: "tickets", label: "Ticket queue" },
-  { id: "staff", label: "Staff" },
-  { id: "roster", label: "Roster import" },
-  { id: "sessions", label: "Sessions" },
-  { id: "audit", label: "Audit" },
+  { id: "tickets", label: "Tickets" },
+  { id: "people", label: "People" },
+  { id: "desk", label: "Desk" },
+  { id: "advanced", label: "Advanced" },
 ];
 
 /** Client-side router used after a self-access change or session revocation. */
@@ -34,6 +36,8 @@ const router = useRouter();
 const authStore = useAuthStore();
 /** Currently selected administration area. */
 const activeTab = ref<AdminTab>("tickets");
+/** Selected advanced administrator control. */
+const advancedTab = ref<AdvancedTab>("sessions");
 /** Current bounded account page. */
 const users = ref<User[]>([]);
 /** Current bounded audit page. */
@@ -81,9 +85,15 @@ async function loadAudit(): Promise<void> {
   }
 }
 
-/** Selects one tab and lazily refreshes its server data. */
+/** Selects one top-level work area. */
 function selectTab(tab: AdminTab): void {
   activeTab.value = tab;
+  message.value = "";
+}
+
+/** Selects one advanced control and lazily refreshes audit data. */
+function selectAdvanced(tab: AdvancedTab): void {
+  advancedTab.value = tab;
   message.value = "";
   if (tab === "audit") void loadAudit();
 }
@@ -116,7 +126,7 @@ async function updateAccount(account: User, details: UpdateUserRequest): Promise
       return;
     }
     if (updatesCurrentAccount && updated.role !== "administrator") {
-      await router.replace("/");
+      await router.replace(landingPath(updated.role));
       return;
     }
     await loadUsers();
@@ -206,21 +216,41 @@ onMounted(() => {
         />
       </div>
 
-      <div v-else-if="activeTab === 'staff'" id="panel-staff" class="space-y-5" role="tabpanel" aria-labelledby="tab-staff">
+      <div v-else-if="activeTab === 'people'" id="panel-people" class="space-y-5" role="tabpanel" aria-labelledby="tab-people">
         <StaffQuickAdd :existing-usernames="users.map((account) => account.username)" @imported="rosterImported" />
         <UserEditor :busy="busyUserId === 'create'" @create="createAccount" />
         <p v-if="loadingUsers" role="status">Loading staff accounts…</p>
         <div v-else class="grid gap-3"><UserRow v-for="account in users" :key="account.id" :user="account" :current-user-id="authStore.user?.id ?? ''" :final-active-administrator="isFinalActiveAdministrator(users, account.id)" :busy="busyUserId === account.id" @update="updateAccount" @reset="resetPassword" @revoke="revokeSessions" /></div>
+        <details class="rounded-2xl border bg-[var(--color-surface-secondary)]" :style="{ borderColor: 'var(--color-border-default)' }">
+          <summary class="min-h-12 cursor-pointer px-5 py-4 font-bold">Import a CSV roster instead</summary>
+          <div class="border-t p-5" :style="{ borderColor: 'var(--color-border-default)' }"><RosterImport @imported="rosterImported" /></div>
+        </details>
       </div>
 
-      <div v-else-if="activeTab === 'roster'" id="panel-roster" role="tabpanel" aria-labelledby="tab-roster"><RosterImport @imported="rosterImported" /></div>
-
-      <div v-else-if="activeTab === 'sessions'" id="panel-sessions" class="space-y-3" role="tabpanel" aria-labelledby="tab-sessions">
-        <div class="rounded-2xl bg-[var(--color-surface-secondary)] p-5"><h2 class="text-xl font-bold">Active session controls</h2><p class="mt-1 text-sm text-[var(--color-text-secondary)]">Use this after a lost device, suspected account compromise, or staff departure.</p></div>
-        <UserRow v-for="account in users" :key="account.id" :user="account" :current-user-id="authStore.user?.id ?? ''" :final-active-administrator="false" :busy="busyUserId === account.id" sessions-only @update="updateAccount" @reset="resetPassword" @revoke="revokeSessions" />
+      <div v-else-if="activeTab === 'desk'" id="panel-desk" class="grid gap-4 md:grid-cols-2" role="tabpanel" aria-labelledby="tab-desk">
+        <article class="rounded-2xl border bg-[var(--color-surface-secondary)] p-5" :style="{ borderColor: 'var(--color-border-default)' }">
+          <h2 class="text-xl font-bold">Desk settings</h2>
+          <p class="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">Change the desk name, support message, logo, ticket categories, and default priority.</p>
+          <router-link to="/settings" class="mt-5 inline-flex min-h-11 items-center rounded-xl bg-[var(--color-accent-primary)] px-4 text-sm font-bold text-white">Open settings</router-link>
+        </article>
+        <article class="rounded-2xl border bg-[var(--color-surface-secondary)] p-5" :style="{ borderColor: 'var(--color-border-default)' }">
+          <h2 class="text-xl font-bold">Server care</h2>
+          <p class="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">Backups, updates, certificate export, and support bundles are run with the included desk launcher on the host computer.</p>
+          <p class="mt-4 text-sm font-semibold">See QUICKSTART.md and RUNBOOK.md beside the application files.</p>
+        </article>
       </div>
 
-      <div v-else id="panel-audit" role="tabpanel" aria-labelledby="tab-audit"><AuditLogTable :entries="auditEntries" :loading="loadingAudit" /></div>
+      <div v-else id="panel-advanced" class="space-y-5" role="tabpanel" aria-labelledby="tab-advanced">
+        <div class="flex flex-wrap gap-2" aria-label="Advanced controls">
+          <button type="button" class="min-h-11 rounded-xl border px-4 text-sm font-bold" :class="advancedTab === 'sessions' ? 'bg-[var(--color-accent-primary)] text-white' : 'bg-[var(--color-surface-secondary)]'" :style="{ borderColor: 'var(--color-border-default)' }" @click="selectAdvanced('sessions')">Sessions</button>
+          <button type="button" class="min-h-11 rounded-xl border px-4 text-sm font-bold" :class="advancedTab === 'audit' ? 'bg-[var(--color-accent-primary)] text-white' : 'bg-[var(--color-surface-secondary)]'" :style="{ borderColor: 'var(--color-border-default)' }" @click="selectAdvanced('audit')">Audit log</button>
+        </div>
+        <div v-if="advancedTab === 'sessions'" class="space-y-3">
+          <div class="rounded-2xl bg-[var(--color-surface-secondary)] p-5"><h2 class="text-xl font-bold">Active session controls</h2><p class="mt-1 text-sm text-[var(--color-text-secondary)]">Use this after a lost device, suspected account compromise, or staff departure.</p></div>
+          <UserRow v-for="account in users" :key="account.id" :user="account" :current-user-id="authStore.user?.id ?? ''" :final-active-administrator="false" :busy="busyUserId === account.id" sessions-only @update="updateAccount" @reset="resetPassword" @revoke="revokeSessions" />
+        </div>
+        <AuditLogTable v-else :entries="auditEntries" :loading="loadingAudit" />
+      </div>
     </section>
   </AppLayout>
 </template>
