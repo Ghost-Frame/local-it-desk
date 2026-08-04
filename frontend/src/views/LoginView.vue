@@ -3,7 +3,7 @@
 import { ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
-import { safePostLoginPath } from "@/lib/router-guards";
+import { landingPath, safePostLoginPath } from "@/lib/router-guards";
 import { useAuthStore } from "@/stores/auth";
 
 const route = useRoute();
@@ -21,9 +21,12 @@ async function submit(): Promise<void> {
   error.value = null;
   try {
     await authStore.login({ username: username.value, password: password.value });
+    const requestedDestination = safePostLoginPath(route.query.redirect);
     const destination = authStore.mustChangePassword
       ? "/change-password"
-      : safePostLoginPath(route.query.redirect);
+      : requestedDestination === "/"
+        ? landingPath(authStore.user?.role)
+        : requestedDestination;
     await router.replace(destination);
   } catch {
     error.value = "We could not sign you in. Check your details and try again.";

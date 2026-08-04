@@ -54,7 +54,7 @@ const routes: RouteRecordRaw[] = [
     path: "/administration",
     name: "administration",
     component: () => import("@/views/AdminView.vue"),
-    meta: { requiresAuth: true, requiresAdministrator: true },
+    meta: { requiresAuth: true, requiresWorker: true },
   },
 ];
 
@@ -73,12 +73,15 @@ router.beforeEach(async (to) => {
       redirectPath: to.fullPath,
       requiresAuth: to.meta.requiresAuth === true,
       requiresAdministrator: to.meta.requiresAdministrator === true,
+      requiresWorker: to.meta.requiresWorker === true,
     },
     {
       setupRequired: auth.setupRequired,
       isAuthenticated: auth.isAuthenticated,
       mustChangePassword: auth.mustChangePassword,
       isAdministrator: auth.isAdministrator,
+      canWorkTickets: auth.canWorkTickets,
+      userRole: auth.user?.role,
     },
   );
   if (redirect) return redirect;

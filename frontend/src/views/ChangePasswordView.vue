@@ -3,6 +3,7 @@
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 
+import { landingPath } from "@/lib/router-guards";
 import { useAuthStore } from "@/stores/auth";
 
 const router = useRouter();
@@ -27,7 +28,7 @@ async function submit(): Promise<void> {
       current_password: currentPassword.value,
       new_password: newPassword.value,
     });
-    await router.replace("/");
+    await router.replace(landingPath(authStore.user?.role));
   } catch {
     error.value = "The password could not be changed. Check the current password and try again.";
   } finally {

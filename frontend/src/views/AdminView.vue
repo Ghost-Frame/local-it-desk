@@ -50,8 +50,12 @@ const loadingUsers = ref(true);
 const loadingAudit = ref(false);
 /** Safe operation feedback shown to the administrator. */
 const message = ref("");
-/** Whether current role state permits rendering administrator controls. */
-const authorized = computed(() => authStore.isAdministrator);
+/** Whether the current role may work the shared support queue. */
+const authorized = computed(() => authStore.canWorkTickets);
+/** Tabs visible to the current role without exposing administrator controls. */
+const visibleTabs = computed(() =>
+  authStore.isAdministrator ? tabs : tabs.filter((tab) => tab.id === "tickets"),
+);
 
 /** Loads the current bounded page of account records. */
 async function loadUsers(): Promise<void> {
@@ -176,21 +180,21 @@ onMounted(() => {
 <template>
   <AppLayout>
     <section v-if="!authorized" class="rounded-2xl border bg-[var(--color-surface-secondary)] p-6" :style="{ borderColor: 'var(--color-border-default)' }" role="alert">
-      <h1 class="text-2xl font-bold">Administrator access required</h1>
-      <p class="mt-2 text-[var(--color-text-secondary)]">Your account cannot manage local staff accounts.</p>
+      <h1 class="text-2xl font-bold">Support access required</h1>
+      <p class="mt-2 text-[var(--color-text-secondary)]">This workspace is available to technicians and administrators.</p>
     </section>
 
     <section v-else class="space-y-6">
       <header class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div><p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-accent-primary)]">Local operator console</p><h1 class="mt-3 text-4xl font-bold tracking-tight">Administration</h1><p class="mt-3 max-w-2xl text-[var(--color-text-secondary)]">Run the support queue and manage named staff access without external email or identity services.</p></div>
-        <p class="rounded-lg bg-[var(--color-surface-tertiary)] px-4 py-3 text-sm"><strong>{{ users.length }}</strong> local accounts</p>
+        <div><p class="font-mono text-xs uppercase tracking-[0.2em] text-[var(--color-accent-primary)]">Local operator console</p><h1 class="mt-3 text-4xl font-bold tracking-tight">Manage Desk</h1><p class="mt-3 max-w-2xl text-[var(--color-text-secondary)]">Work the support queue and, as an administrator, manage named staff access.</p></div>
+        <p v-if="authStore.isAdministrator" class="rounded-lg bg-[var(--color-surface-tertiary)] px-4 py-3 text-sm"><strong>{{ users.length }}</strong> local accounts</p>
       </header>
 
       <OnboardingPanel v-if="onboardingCredentials.length" :credentials="onboardingCredentials" :desk-url="deskUrl" @dismiss="dismissOnboarding" />
       <p v-if="message" class="rounded-lg border p-3 text-sm" :style="{ borderColor: 'var(--color-border-default)' }" role="status">{{ message }}</p>
 
-      <nav class="flex gap-1 overflow-x-auto border-b" :style="{ borderColor: 'var(--color-border-default)' }" role="tablist" aria-label="Administration sections">
-        <button v-for="tab in tabs" :id="`tab-${tab.id}`" :key="tab.id" class="min-h-11 shrink-0 border-b-2 px-4 text-sm font-bold" :class="activeTab === tab.id ? 'border-[var(--color-accent-primary)] text-[var(--color-accent-primary)]' : 'border-transparent text-[var(--color-text-secondary)]'" role="tab" :aria-selected="activeTab === tab.id" :aria-controls="`panel-${tab.id}`" @click="selectTab(tab.id)">{{ tab.label }}</button>
+      <nav class="flex gap-1 overflow-x-auto border-b" :style="{ borderColor: 'var(--color-border-default)' }" role="tablist" aria-label="Manage Desk sections">
+        <button v-for="tab in visibleTabs" :id="`tab-${tab.id}`" :key="tab.id" class="min-h-11 shrink-0 border-b-2 px-4 text-sm font-bold" :class="activeTab === tab.id ? 'border-[var(--color-accent-primary)] text-[var(--color-accent-primary)]' : 'border-transparent text-[var(--color-text-secondary)]'" role="tab" :aria-selected="activeTab === tab.id" :aria-controls="`panel-${tab.id}`" @click="selectTab(tab.id)">{{ tab.label }}</button>
       </nav>
 
       <div v-if="activeTab === 'tickets'" id="panel-tickets" role="tabpanel" aria-labelledby="tab-tickets">

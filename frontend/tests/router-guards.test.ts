@@ -4,7 +4,7 @@
  */
 import test from "node:test";
 import assert from "node:assert/strict";
-import { resolveGuardRedirect } from "../src/lib/router-guards.js";
+import { landingPath, resolveGuardRedirect } from "../src/lib/router-guards.js";
 import type { GuardRoute } from "../src/lib/router-guards.js";
 
 /** Builds a minimal GuardRoute fixture. */
@@ -32,14 +32,20 @@ test("resolveGuardRedirect allows authenticated access to protected routes", () 
   assert.equal(result, undefined);
 });
 
-test("resolveGuardRedirect bounces authenticated user away from /login to /", () => {
+test("resolveGuardRedirect sends authenticated requesters from login to tickets", () => {
   const result = resolveGuardRedirect(makeRoute("/login", false), true);
-  assert.equal(result, "/");
+  assert.equal(result, "/tickets");
 });
 
-test("resolveGuardRedirect allows authenticated access to unprotected non-login routes", () => {
+test("resolveGuardRedirect replaces the compatibility root with the role landing page", () => {
   const result = resolveGuardRedirect(makeRoute("/", false), true);
-  assert.equal(result, undefined);
+  assert.equal(result, "/tickets");
+});
+
+test("landingPath opens each role at its active work", () => {
+  assert.equal(landingPath("requester"), "/tickets");
+  assert.equal(landingPath("technician"), "/administration");
+  assert.equal(landingPath("administrator"), "/administration");
 });
 
 /**
