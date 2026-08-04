@@ -207,7 +207,7 @@ async function ticketCreated(ticket: Ticket): Promise<void> {
 
     <div v-if="formOpen" class="fixed inset-0 z-50 grid place-items-end bg-black/55 p-0 sm:place-items-center sm:p-6" role="dialog" aria-modal="true" aria-labelledby="new-ticket-heading" @keydown.esc="formOpen = false">
       <div class="max-h-[95vh] w-full overflow-y-auto rounded-t-3xl border bg-[var(--color-surface-elevated)] p-5 shadow-2xl sm:max-w-2xl sm:rounded-3xl sm:p-7" :style="{ borderColor: 'var(--color-border-default)' }">
-        <h2 id="new-ticket-heading" class="sr-only">New ticket</h2>
+        <h2 id="new-ticket-heading" class="sr-only">New request</h2>
         <TicketForm @created="ticketCreated" @cancel="formOpen = false" />
       </div>
     </div>

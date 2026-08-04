@@ -45,7 +45,7 @@ for tracked_path in "${release_paths[@]}"; do
     Cargo.lock|caddy/go.sum|frontend/pnpm-lock.yaml)
       classification="generated-dependency-metadata"
       ;;
-    .dockerignore|.editorconfig|.env.example|.gitignore|CONTRIBUTING.md|Cargo.toml|Dockerfile|README.md|SECURITY.md|NOTICE|THIRD-PARTY-NOTICES.md|CHANGELOG.md|compose.yaml|compose.https.yaml|rust-toolchain.toml)
+    .dockerignore|.editorconfig|.env.example|.gitignore|CONTRIBUTING.md|Cargo.toml|Dockerfile|README.md|QUICKSTART.md|SECURITY.md|NOTICE|THIRD-PARTY-NOTICES.md|CHANGELOG.md|compose.yaml|compose.https.yaml|rust-toolchain.toml)
       classification="project-authored"
       ;;
     .github/dependabot.yml|.github/workflows/*.yml|caddy/go.mod|caddy/main.go|crates/server/Cargo.toml|crates/server/src/*.rs|crates/server/tests/*.rs|deploy/Caddyfile|docs/*.md|frontend/index.html|frontend/package.json|frontend/pnpm-workspace.yaml|frontend/tsconfig.json|frontend/tsconfig.test.json|frontend/vite.config.ts|frontend/src/*.css|frontend/src/*.ts|frontend/src/*.vue|frontend/tests/*.ts|release/*|scripts/desk|scripts/*.ps1|scripts/*.sh|scripts/tests/*.bats|scripts/tests/*.py|tests/e2e/local-only/*.md|tests/e2e/local-only/*.sh)
