@@ -32,7 +32,7 @@ RUN CGO_ENABLED=0 go build \
     -o /usr/local/bin/caddy \
     .
 
-FROM debian:12.15-slim AS runtime
+FROM debian:13.6-slim AS runtime
 
 LABEL org.opencontainers.image.title="Local IT Desk" \
       org.opencontainers.image.description="Local-network help desk for named staff accounts" \
