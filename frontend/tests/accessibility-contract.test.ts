@@ -50,6 +50,12 @@ test("credential and ticket forms keep visible labels, status text, and native s
   assert.ok(/sm:grid-cols-2/.test(forms));
 });
 
+test("staff quick add keeps validation quiet until the operator enters a roster", () => {
+  /** Paste-first staff onboarding source. */
+  const quickAdd = source("../../src/components/admin/StaffQuickAdd.vue");
+  assert.ok(/v-if="pastedNames\.trim\(\) && parsed\.errors\.length"/.test(quickAdd));
+});
+
 test("global interaction styles preserve focus, touch targets, and reduced-motion preferences", () => {
   /** Global visual-system source applied to every route. */
   const styles = source("../../src/assets/main.css");

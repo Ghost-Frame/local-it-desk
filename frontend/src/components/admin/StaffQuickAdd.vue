@@ -100,7 +100,7 @@ async function createStaff(): Promise<void> {
       @input="namesChanged"
     />
 
-    <ul v-if="parsed.errors.length" class="mt-4 grid gap-2" role="alert">
+    <ul v-if="pastedNames.trim() && parsed.errors.length" class="mt-4 grid gap-2" role="alert">
       <li v-for="problem in parsed.errors" :key="`${problem.line}-${problem.message}`" class="rounded-lg bg-[color-mix(in_oklch,var(--color-status-error)_10%,transparent)] p-3 text-sm">
         <strong>{{ problem.line ? `Line ${problem.line}:` : "Staff list:" }}</strong> {{ problem.message }}
       </li>
