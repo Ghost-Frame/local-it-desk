@@ -46,6 +46,7 @@ assert_json "${evaluation_json}" '.volumes | keys == ["desk-state"]' 'only the a
 assert_json "${evaluation_json}" '.services.app.environment.DATABASE_PATH == "/state/current/data/local-it-desk.db" and .services.app.environment.UPLOAD_DIR == "/state/current/attachments" and .services.app.environment.BRANDING_DIR == "/state/current/branding"' 'application paths must resolve beneath the active current generation'
 assert_json "${evaluation_json}" '.services.app.healthcheck.test | index("/app/local-it-desk-healthcheck")' 'application healthcheck is required'
 assert_json "${evaluation_json}" '.services.app.logging.driver == "json-file" and .services.app.logging.options["max-size"] == "10m" and .services.app.logging.options["max-file"] == "3"' 'application logs must use cross-engine rotation'
+assert_json "${evaluation_json}" '(.services.app.networks | keys) == ["default"] and ((.networks.default.internal // false) == false)' 'evaluation app must use one ordinary bridge network so Docker can publish its HTTP port'
 
 assert_json "${school_json}" '.services | keys == ["app", "caddy"]' 'school profile must contain only app and Caddy'
 assert_json "${school_json}" '(.services.app.ports // []) | length == 0' 'school profile must remove every application host port'
@@ -58,6 +59,8 @@ assert_json "${school_json}" '.services.caddy.ports | length == 1 and .[0].targe
 assert_json "${school_json}" '[.services.caddy.volumes[] | {type, source, target, read_only: (.read_only // false)}] | sort_by(.target) == [{"type":"volume","source":"desk-caddy-data","target":"/caddy-data","read_only":false},{"type":"bind","source":"'"${PWD}"'/deploy/Caddyfile","target":"/etc/caddy/Caddyfile","read_only":true}]' 'Caddy must persist its private PKI separately and bind only its read-only configuration'
 assert_json "${school_json}" '.volumes | keys == ["desk-caddy-data", "desk-state"]' 'school profile must persist only application state and isolated Caddy PKI'
 assert_json "${school_json}" '.services.caddy.healthcheck.test == ["CMD", "/app/local-it-desk-healthcheck"]' 'Caddy must use the reviewed loopback proxy healthcheck binary'
+assert_json "${school_json}" '(.services.app.networks | keys) == ["desk-internal"] and .networks["desk-internal"].internal == true' 'school app must attach only to the externally isolated internal network'
+assert_json "${school_json}" '(.services.caddy.networks | keys) == ["desk-ingress", "desk-internal"] and ((.networks["desk-ingress"].internal // false) == false)' 'Caddy must bridge the isolated app network to one ordinary ingress network'
 assert_json "${school_json}" '[.services[] | (.privileged // false)] | all(. == false)' 'privileged mode is forbidden'
 assert_json "${school_json}" '[.services[] | (.network_mode // "")] | all(. != "host")' 'host networking is forbidden'
 assert_json "${school_json}" '[.services[].volumes[]?.source // ""] | all(contains("docker.sock") | not)' 'Docker socket mounts are forbidden'

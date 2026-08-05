@@ -4,6 +4,8 @@ services:
       APP_ORIGIN: "${HTTPS_ORIGIN:-https://helpdesk.local}"
       COOKIE_SECURE: "true"
     ports: !reset []
+    networks:
+      - desk-internal
 
   caddy:
     image: "${LOCAL_IT_DESK_IMAGE:-docker.io/ghostframe/local-it-desk:0.1.1}"
@@ -56,6 +58,12 @@ services:
         max-file: "3"
     networks:
       - desk-internal
+      - desk-ingress
 
 volumes:
   desk-caddy-data:
+
+networks:
+  desk-internal:
+    internal: true
+  desk-ingress:

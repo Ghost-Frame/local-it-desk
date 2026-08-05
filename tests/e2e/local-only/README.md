@@ -1,10 +1,10 @@
 # Local-only Compose smoke journey
 
-This harness proves that a new isolated Local IT Desk installation can complete
-its core staff workflow without Internet access at runtime. It uses a unique
-Compose project, a unique named state volume, a loopback-only HTTP port, and a
-private temporary evidence directory. It never reuses the normal development
-stack or its data.
+This harness proves that a new Local IT Desk evaluation installation can
+complete its core staff workflow without calling an outside service. It uses a
+unique Compose project, a unique named state volume, a loopback-only HTTP port,
+and a private temporary evidence directory. It never reuses the normal
+development stack or its data.
 
 Run from the repository root:
 
@@ -19,10 +19,10 @@ CONTAINER_ENGINE=podman bash scripts/smoke-compose.sh
 ```
 
 The harness builds the release image before the observation window. It then
-checks that the application has exactly one internal Compose network, where
-external egress is unavailable, and completes all runtime requests over the
-loopback-published Caddy edge. Caddy spans the internal and ingress networks;
-the application itself never joins the ingress network.
+checks that the evaluation app has exactly one ordinary Compose network so
+Docker can publish the loopback HTTP port. The separate HTTPS smoke verifies
+the school topology: the application joins only the internal network, while
+Caddy spans the internal and ingress networks and is the only published edge.
 
 The journey covers first administrator setup, named requester creation, forced
 password replacement, a ticket, attachment, public and internal comments,

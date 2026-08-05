@@ -51,12 +51,5 @@ services:
       options:
         max-size: 10m
         max-file: "3"
-    networks:
-      - desk-internal
-
 volumes:
   desk-state:
-
-networks:
-  desk-internal:
-    internal: true
