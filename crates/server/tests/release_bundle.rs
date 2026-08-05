@@ -14,7 +14,7 @@ use tar::{Archive, Builder};
 use tempfile::TempDir;
 
 /// Release version exercised by the public pilot artifact tests.
-const VERSION: &str = "0.2.0";
+const VERSION: &str = "0.2.1";
 /// Fixed valid image digest used only for generated test fixtures.
 const IMAGE_DIGEST: &str =
     "sha256:1111111111111111111111111111111111111111111111111111111111111111";
@@ -229,7 +229,7 @@ fn mutated_archive(valid_archive: &Path, temp: &TempDir, mutation: Mutation) -> 
             let compose = fs::read_to_string(&path).expect("read Compose fixture");
             let mutable = compose.replace(
                 &format!("docker.io/ghostframe/local-it-desk@{IMAGE_DIGEST}"),
-                "docker.io/ghostframe/local-it-desk:0.2.0",
+                "docker.io/ghostframe/local-it-desk:0.2.1",
             );
             assert_ne!(compose, mutable, "immutable image fixture must be replaced");
             fs::write(path, mutable).expect("write mutable Compose fixture");
@@ -239,7 +239,7 @@ fn mutated_archive(valid_archive: &Path, temp: &TempDir, mutation: Mutation) -> 
             let environment = fs::read_to_string(&path).expect("read environment fixture");
             let mutable = environment.replace(
                 &format!("docker.io/ghostframe/local-it-desk@{IMAGE_DIGEST}"),
-                "docker.io/ghostframe/local-it-desk:0.2.0",
+                "docker.io/ghostframe/local-it-desk:0.2.1",
             );
             assert_ne!(
                 environment, mutable,
@@ -252,7 +252,7 @@ fn mutated_archive(valid_archive: &Path, temp: &TempDir, mutation: Mutation) -> 
             let launcher = fs::read_to_string(&path).expect("read launcher fixture");
             let mutable = launcher.replace(
                 &format!("docker.io/ghostframe/local-it-desk@{IMAGE_DIGEST}"),
-                "docker.io/ghostframe/local-it-desk:0.2.0",
+                "docker.io/ghostframe/local-it-desk:0.2.1",
             );
             assert_ne!(
                 launcher, mutable,

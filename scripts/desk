@@ -14,7 +14,7 @@ readonly health_attempts="${DESK_HEALTH_ATTEMPTS:-60}"
 # Exact appliance configuration file.
 readonly env_file="${repo_root}/.env"
 # Default source image used when install receives no explicit image override.
-readonly default_install_image='local-it-desk:0.2.0'
+readonly default_install_image='local-it-desk:0.2.1'
 # Compose arguments shared by every production command.
 readonly -a compose_args=(
   compose

@@ -50,6 +50,11 @@ jobs:
           node-version: 24.4.1
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: 1.26.5
+          cache-dependency-path: caddy/go.sum
       - name: Cache Rust build data
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4 # v2.9.1
       - name: Install locked frontend dependencies

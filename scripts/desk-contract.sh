@@ -108,7 +108,7 @@ grep -Fxq 'APP_NAME=School IT Desk' "${release_root}/.env" || fail 'install did 
 find "${release_root}" -maxdepth 1 -name '.env.tmp.*' -print -quit | grep -q . \
   && fail 'install left a non-atomic temporary configuration'
 grep -Fq -- '--project-name local-it-desk' "${fake_log}" || fail 'launcher did not pin its Compose project'
-grep -Fq -- 'build --tag local-it-desk:0.2.0' "${fake_log}" || fail 'missing local image was not built'
+grep -Fq -- 'build --tag local-it-desk:0.2.1' "${fake_log}" || fail 'missing local image was not built'
 [[ -s "${release_root}/exports/local-it-desk-root.crt" ]] || fail 'install did not export the public trust certificate'
 
 (cd "${release_root}" && scripts/desk status) >/dev/null

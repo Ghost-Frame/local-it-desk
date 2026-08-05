@@ -1,7 +1,7 @@
 # Teacher pilot checklist
 
 This checklist is for the first staff-only pilot of Local IT Desk. Give the
-pilot administrator only the public `v0.2.0` GitHub release and the runbook
+pilot administrator only the public `v0.2.1` GitHub release and the runbook
 inside its downloaded bundle. Do not use a private development checkout.
 
 Plain HTTP is limited to evaluation with invented accounts, tickets, comments,
@@ -13,7 +13,7 @@ failed security, recovery, or data-isolation check before continuing.
 
 ## Release and installation
 
-- [ ] Record the `v0.2.0` GitHub release URL.
+- [ ] Record the `v0.2.1` GitHub release URL.
 - [ ] Verify the archive against its adjacent SHA-256 checksum before
   extraction.
 - [ ] Follow the bundled runbook on a fresh host without consulting the source
