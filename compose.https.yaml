@@ -3,16 +3,33 @@ services:
     environment:
       APP_ORIGIN: "${HTTPS_ORIGIN:-https://helpdesk.local}"
       COOKIE_SECURE: "true"
+    ports: !reset []
+    networks:
+      - desk-internal
 
   caddy:
-    command:
-      - caddy
-      - run
-      - --config
-      - /etc/caddy/Caddyfile
-      - --adapter
-      - caddyfile
-    ports: !override
+    image: "${LOCAL_IT_DESK_IMAGE:-docker.io/ghostframe/local-it-desk:0.1.1}"
+    pull_policy: missing
+    entrypoint: ["/app/caddy"]
+    command: ["run", "--config", "/etc/caddy/Caddyfile", "--adapter", "caddyfile"]
+    user: "10001:10001"
+    init: true
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      app:
+        condition: service_healthy
+        restart: true
+    environment:
+      HEALTHCHECK_ADDR: 127.0.0.1:8080
+      HTTPS_HOST: "${HTTPS_HOST:-helpdesk.local}"
+      XDG_CONFIG_HOME: /tmp/config
+      XDG_DATA_HOME: /caddy-data
+    ports:
       - name: school-https
         target: 8443
         published: "${HTTPS_PORT:-443}"
@@ -23,7 +40,30 @@ services:
         source: ./deploy/Caddyfile
         target: /etc/caddy/Caddyfile
         read_only: true
-      - type: bind
-        source: ./certs
-        target: /certs
-        read_only: true
+      - type: volume
+        source: desk-caddy-data
+        target: /caddy-data
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=50331648,mode=1777
+    healthcheck:
+      test: ["CMD", "/app/local-it-desk-healthcheck"]
+      interval: 10s
+      timeout: 3s
+      start_period: 5s
+      retries: 5
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+    networks:
+      - desk-internal
+      - desk-ingress
+
+volumes:
+  desk-caddy-data:
+
+networks:
+  desk-internal:
+    internal: true
+  desk-ingress:

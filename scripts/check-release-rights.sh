@@ -42,13 +42,13 @@ for tracked_path in "${release_paths[@]}"; do
     LICENSE)
       classification="standard-license-text"
       ;;
-    Cargo.lock|frontend/pnpm-lock.yaml)
+    Cargo.lock|caddy/go.sum|frontend/pnpm-lock.yaml)
       classification="generated-dependency-metadata"
       ;;
-    .dockerignore|.editorconfig|.env.example|.gitignore|CONTRIBUTING.md|Cargo.toml|Dockerfile|README.md|SECURITY.md|NOTICE|THIRD-PARTY-NOTICES.md|CHANGELOG.md|compose.yaml|compose.https.yaml|rust-toolchain.toml)
+    .dockerignore|.editorconfig|.env.example|.gitignore|CONTRIBUTING.md|Cargo.toml|Dockerfile|README.md|QUICKSTART.md|SECURITY.md|NOTICE|THIRD-PARTY-NOTICES.md|CHANGELOG.md|compose.yaml|compose.https.yaml|rust-toolchain.toml)
       classification="project-authored"
       ;;
-    .github/dependabot.yml|.github/workflows/*.yml|crates/server/Cargo.toml|crates/server/src/*.rs|crates/server/tests/*.rs|deploy/Caddyfile|docs/*.md|frontend/index.html|frontend/package.json|frontend/pnpm-workspace.yaml|frontend/tsconfig.json|frontend/tsconfig.test.json|frontend/vite.config.ts|frontend/src/*.css|frontend/src/*.ts|frontend/src/*.vue|frontend/tests/*.ts|release/*|scripts/*.sh|scripts/tests/*.bats|scripts/tests/*.py|tests/e2e/local-only/*.md|tests/e2e/local-only/*.sh)
+    .github/dependabot.yml|.github/workflows/*.yml|caddy/go.mod|caddy/main.go|crates/server/Cargo.toml|crates/server/src/*.rs|crates/server/tests/*.rs|deploy/Caddyfile|docs/*.md|frontend/index.html|frontend/package.json|frontend/pnpm-workspace.yaml|frontend/tsconfig.json|frontend/tsconfig.test.json|frontend/vite.config.ts|frontend/src/*.css|frontend/src/*.ts|frontend/src/*.vue|frontend/tests/*.ts|release/*|scripts/desk|scripts/*.ps1|scripts/*.sh|scripts/tests/*.bats|scripts/tests/*.py|tests/e2e/local-only/*.md|tests/e2e/local-only/*.sh)
       classification="project-authored"
       ;;
     *)
@@ -118,7 +118,7 @@ done < <(cargo metadata --format-version 1 --locked | jq -r '[.packages[] | sele
 
 while IFS= read -r frontend_license; do
   case "${frontend_license}" in
-    Apache-2.0|BSD-2-Clause|BSD-3-Clause|ISC|MIT|MPL-2.0)
+    0BSD|Apache-2.0|BSD-2-Clause|BSD-3-Clause|ISC|MIT|MPL-2.0)
       ;;
     *)
       printf 'Release rights check failed: unreviewed frontend license %s.\n' "${frontend_license}" >&2
@@ -126,5 +126,36 @@ while IFS= read -r frontend_license; do
       ;;
   esac
 done < <(pnpm --dir frontend licenses list --json | jq -r 'keys[]')
+
+readonly go_licenses_version="v2.0.1"
+readonly caddy_build_tags="nobadger,nomysql,nopgx"
+go_license_stderr="$(mktemp)"
+readonly go_license_stderr
+trap 'rm -f "${go_license_stderr}"' EXIT
+
+if ! caddy_license_report="$({
+  cd caddy
+  GOFLAGS="-tags=${caddy_build_tags}" go run "github.com/google/go-licenses/v2@${go_licenses_version}" \
+    report --ignore local-it-desk/caddy . 2>"${go_license_stderr}"
+})"; then
+  cat "${go_license_stderr}" >&2
+  printf 'Release rights check failed: Caddy license discovery did not complete.\n' >&2
+  exit 1
+fi
+
+# Rejects Caddy dependencies whose detected license was not explicitly reviewed.
+while IFS=, read -r go_package _ go_license; do
+  if [[ -z "${go_package}" ]]; then
+    continue
+  fi
+  case "${go_license}" in
+    Apache-2.0|BSD-2-Clause|BSD-3-Clause|CC0-1.0|MIT|OFL-1.1)
+      ;;
+    *)
+      printf 'Release rights check failed: unreviewed Caddy license %s for %s.\n' "${go_license}" "${go_package}" >&2
+      exit 1
+      ;;
+  esac
+done <<< "${caddy_license_report}"
 
 printf 'Release rights check passed for %s public-bound files.\n' "${#release_paths[@]}"

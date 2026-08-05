@@ -1,5 +1,7 @@
 /** Pure navigation policy for setup, local sessions, and account roles. */
 
+import type { UserRole } from "../types/api.js";
+
 /** Minimal route shape required by the authentication guard. */
 export interface GuardRoute {
   /** Canonical route path without its query string. */
@@ -10,6 +12,8 @@ export interface GuardRoute {
   requiresAuth: boolean;
   /** Whether the destination additionally requires an administrator. */
   requiresAdministrator?: boolean;
+  /** Whether the destination requires a technician or administrator. */
+  requiresWorker?: boolean;
 }
 
 /** Current authentication facts used by the pure route policy. */
@@ -22,6 +26,15 @@ export interface AuthGuardState {
   mustChangePassword: boolean;
   /** Whether the current account holds the administrator role. */
   isAdministrator: boolean;
+  /** Whether the current account may work the shared ticket queue. */
+  canWorkTickets?: boolean;
+  /** Current account role used for a direct work landing. */
+  userRole?: UserRole;
+}
+
+/** Returns the active workspace for one authenticated account role. */
+export function landingPath(role: UserRole | null | undefined): "/tickets" | "/administration" {
+  return role === "administrator" || role === "technician" ? "/administration" : "/tickets";
 }
 
 /** Returns a same-origin application path or a safe dashboard fallback. */
@@ -41,6 +54,8 @@ function normalizeState(state: AuthGuardState | boolean): AuthGuardState {
     isAuthenticated: state,
     mustChangePassword: false,
     isAdministrator: false,
+    canWorkTickets: false,
+    userRole: "requester",
   };
 }
 
@@ -50,12 +65,14 @@ export function resolveGuardRedirect(
   suppliedState: AuthGuardState | boolean,
 ): string | undefined {
   const state = normalizeState(suppliedState);
+  const role = state.userRole ?? (state.isAdministrator ? "administrator" : "requester");
+  const activeLanding = landingPath(role);
 
   if (state.setupRequired) {
     return to.path === "/setup" ? undefined : "/setup";
   }
   if (to.path === "/setup") {
-    return state.isAuthenticated ? "/" : "/login";
+    return state.isAuthenticated ? activeLanding : "/login";
   }
   if (!state.isAuthenticated) {
     if (to.path === "/login") return undefined;
@@ -66,7 +83,9 @@ export function resolveGuardRedirect(
   if (state.mustChangePassword) {
     return to.path === "/change-password" ? undefined : "/change-password";
   }
-  if (["/login", "/change-password"].includes(to.path)) return "/";
-  if (to.requiresAdministrator && !state.isAdministrator) return "/";
+  if (["/login", "/change-password"].includes(to.path)) return activeLanding;
+  if (to.requiresAdministrator && !state.isAdministrator) return activeLanding;
+  if (to.requiresWorker && !(state.canWorkTickets ?? state.isAdministrator)) return activeLanding;
+  if (to.path === "/") return activeLanding;
   return undefined;
 }

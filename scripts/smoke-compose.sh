@@ -77,7 +77,7 @@ finish_smoke() {
         "${compose_command[@]}" logs --no-color --tail 120 2>&1 || true
       } | redact_stream | tee "${evidence_dir}/failure.log" >&2
     fi
-    "${compose_command[@]}" stop caddy app >/dev/null 2>&1 || true
+    "${compose_command[@]}" stop app >/dev/null 2>&1 || true
   fi
   if ! sanitize_evidence; then
     printf 'Smoke evidence redaction failed.\n' >&2
@@ -113,8 +113,8 @@ wait_for_health() {
   fail "${service_name} health timed out in state ${health_state}"
 }
 
-# Proves the application has only one internal network and no runtime egress.
-assert_runtime_isolation() {
+# Proves the evaluation application uses one ordinary network for Docker host publishing.
+assert_evaluation_network() {
   local container_id
   local network_json
   local network_name
@@ -125,8 +125,8 @@ assert_runtime_isolation() {
     || fail 'application must attach to exactly one runtime network'
   network_name="$(jq -er 'keys[0]' <<<"${network_json}")"
   internal_state="$("${container_engine}" network inspect "${network_name}" --format '{{.Internal}}')"
-  [[ "${internal_state}" == 'true' ]] \
-    || fail "runtime network ${network_name} is not internal"
+  [[ "${internal_state}" == 'false' ]] \
+    || fail "evaluation network ${network_name} unexpectedly blocks Docker host publishing"
 }
 
 # Requires one named state volume owned by this unique Compose project.
@@ -155,6 +155,9 @@ assert_unused_project() {
   fi
   if "${container_engine}" network inspect "${compose_project}_desk-ingress" >/dev/null 2>&1; then
     fail "smoke project already has an ingress network: ${compose_project}"
+  fi
+  if "${container_engine}" network inspect "${compose_project}_default" >/dev/null 2>&1; then
+    fail "smoke project already has a default network: ${compose_project}"
   fi
 }
 
@@ -206,11 +209,10 @@ export HTTP_BIND_ADDRESS='127.0.0.1'
 export HTTP_PORT="${smoke_http_port}"
 export APP_ORIGIN="${base_url}"
 export LOCAL_IT_DESK_IMAGE="${old_image}"
-"${compose_command[@]}" up --detach app caddy >/dev/null
+"${compose_command[@]}" up --detach app >/dev/null
 compose_started='true'
 wait_for_health app
-wait_for_health caddy
-assert_runtime_isolation
+assert_evaluation_network
 assert_isolated_state_volume
 
 tests/e2e/local-only/verify.sh seed "${base_url}" "${evidence_dir}"

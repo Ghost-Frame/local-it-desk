@@ -17,7 +17,9 @@
     "src/lib/ticket-admin.ts",
     "src/lib/router-guards.ts",
     "src/lib/admin-guard.ts",
+    "src/lib/account-admin.ts",
     "src/lib/api.ts",
+    "src/lib/staff-onboarding.ts",
     "src/types/**/*.ts"
   ],
   "exclude": ["node_modules", "src/**/*.vue"]

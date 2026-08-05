@@ -1,5 +1,6 @@
 <script setup lang="ts">
-/** Primary help-desk navigation with administrator-only configuration access. */
+/** Role-aware help-desk navigation ordered around each account's active work. */
+import { computed } from "vue";
 import { storeToRefs } from "pinia";
 
 import { useAuthStore } from "@/stores/auth";
@@ -15,15 +16,20 @@ const emit = defineEmits<{
 }>();
 
 const authStore = useAuthStore();
-const { displayName, isAdministrator, logoUrl, publicConfig } = storeToRefs(authStore);
+const { canWorkTickets, displayName, logoUrl, publicConfig } = storeToRefs(authStore);
 
-/** Navigation visible to every authenticated staff member. */
-const primaryItems = [
-  { name: "dashboard", label: "Dashboard", eyebrow: "01", path: "/" },
-  { name: "tickets", label: "Tickets", eyebrow: "02", path: "/tickets" },
-  { name: "announcements", label: "Announcements", eyebrow: "03", path: "/announcements" },
-  { name: "settings", label: "Settings", eyebrow: "04", path: "/settings" },
-];
+/** Navigation sequence that puts the current role's primary task first. */
+const primaryItems = computed(() => {
+  const common = [
+    { name: "tickets", label: "Tickets", path: "/tickets" },
+    { name: "announcements", label: "Announcements", path: "/announcements" },
+    { name: "settings", label: "Settings", path: "/settings" },
+  ];
+  const items = canWorkTickets.value
+    ? [{ name: "administration", label: "Manage Desk", path: "/administration" }, ...common]
+    : common;
+  return items.map((item, index) => ({ ...item, eyebrow: String(index + 1).padStart(2, "0") }));
+});
 </script>
 
 <template>
@@ -60,17 +66,6 @@ const primaryItems = [
       >
         <span class="font-mono text-[0.65rem] text-[var(--color-text-tertiary)]">{{ item.eyebrow }}</span>
         <span>{{ item.label }}</span>
-      </router-link>
-
-      <router-link
-        v-if="isAdministrator"
-        to="/administration"
-        class="group flex min-h-11 items-center gap-3 rounded-lg border border-transparent px-3 text-sm font-semibold text-[var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-tertiary)] hover:text-[var(--color-text-primary)]"
-        active-class="!border-[var(--color-border-default)] !bg-[var(--color-surface-elevated)] !text-[var(--color-accent-primary)]"
-        @click="emit('close')"
-      >
-        <span class="font-mono text-[0.65rem] text-[var(--color-text-tertiary)]">05</span>
-        <span>Administration</span>
       </router-link>
     </nav>
 

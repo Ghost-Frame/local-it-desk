@@ -5,7 +5,7 @@ use std::path::{Path as FilePath, PathBuf};
 use axum::body::Body;
 use axum::extract::{DefaultBodyLimit, Multipart, Path, State};
 use axum::http::StatusCode;
-use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE, HeaderName, HeaderValue};
+use axum::http::header::{CACHE_CONTROL, CONTENT_LENGTH, CONTENT_TYPE, HeaderName, HeaderValue};
 use axum::response::Response;
 use axum::routing::{get, patch, post};
 use axum::{Json, Router};
@@ -13,6 +13,7 @@ use chrono::{SecondsFormat, Utc};
 use rusqlite::{Connection, TransactionBehavior, params};
 use serde::{Deserialize, Serialize};
 use tokio::io::AsyncWriteExt;
+use tokio_util::io::ReaderStream;
 use uuid::Uuid;
 
 use super::AppState;
@@ -480,15 +481,20 @@ async fn public_logo(State(state): State<AppState>) -> AppResult<Response> {
     .await?
     .ok_or(AppError::NotFound)?;
     let (path, media_type) = safe_logo_path(&state.config.branding_dir, &stored_name)?;
-    let metadata = tokio::fs::metadata(&path).await.map_err(map_logo_io)?;
-    if metadata.len() > state.config.max_upload_bytes {
+    let file = tokio::fs::File::open(path).await.map_err(map_logo_io)?;
+    let metadata = file.metadata().await.map_err(map_logo_io)?;
+    if !metadata.is_file() || metadata.len() > state.config.max_upload_bytes {
         return Err(AppError::NotFound);
     }
-    let bytes = tokio::fs::read(path).await.map_err(map_logo_io)?;
-    let mut response = Response::new(Body::from(bytes));
+    let mut response = Response::new(Body::from_stream(ReaderStream::new(file)));
     response
         .headers_mut()
         .insert(CONTENT_TYPE, HeaderValue::from_static(media_type));
+    response.headers_mut().insert(
+        CONTENT_LENGTH,
+        HeaderValue::from_str(&metadata.len().to_string())
+            .map_err(|_| AppError::Internal("stored logo size was invalid".to_string()))?,
+    );
     response.headers_mut().insert(
         CACHE_CONTROL,
         HeaderValue::from_static("public, max-age=300"),

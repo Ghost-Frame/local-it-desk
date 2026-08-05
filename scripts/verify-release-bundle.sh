@@ -82,6 +82,7 @@ tar --extract --gzip --file "${archive_path}" \
 # Exact regular-file allowlist for the operator-only release payload.
 readonly required_files=(
   .env.example
+  QUICKSTART.md
   SHA256SUMS
   compose.https.yaml
   compose.yaml
@@ -89,6 +90,7 @@ readonly required_files=(
   docs/BACKUP-RESTORE.md
   docs/ROSTER-IMPORT.md
   docs/RUNBOOK.md
+  docs/STAFF-GUIDE.md
   docs/TLS.md
   release/README.txt
   release/allowed_signers

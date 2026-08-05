@@ -5,6 +5,12 @@ administrator-only operation with separate preview and apply steps. Preview
 never changes the database. Apply creates every account in one transaction or
 creates none of them.
 
+For an ordinary staff list, open **Manage Desk**, choose **People**, and use
+**Quick add staff**. Paste one display name per line. The browser suggests
+unique usernames and creates requester accounts after a preview. Expand
+**Import a CSV roster instead** only when roles or an existing spreadsheet make
+the full format useful.
+
 ## File format
 
 Save the file as UTF-8 CSV with this exact first line:
@@ -73,7 +79,9 @@ created account. Each account must change that password before using normal
 help-desk features. The server sets `Cache-Control: no-store` on the response.
 
 Download or print the result immediately, give each password only to its named
-staff member, and then close the result screen. Local IT Desk stores only the
-Argon2id password hashes. It does not store or write the temporary passwords to
-the audit log, and it cannot show the same passwords again. If you lose one, use
-the administrator password-reset action to generate a replacement.
+staff member, and then close the result screen. Printed cards include the desk
+address as text and a QR code. The QR code contains only the address, never the
+username or password. Local IT Desk stores only the Argon2id password hashes.
+It does not store or write the temporary passwords to the audit log, and it
+cannot show the same passwords again. If you lose one, use the administrator
+password-reset action to generate a replacement.

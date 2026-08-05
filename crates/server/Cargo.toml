@@ -17,6 +17,7 @@ path = "src/bin/local-it-desk-healthcheck.rs"
 [dependencies]
 axum.workspace = true
 tokio.workspace = true
+tokio-util.workspace = true
 tower.workspace = true
 tower-http.workspace = true
 rusqlite.workspace = true

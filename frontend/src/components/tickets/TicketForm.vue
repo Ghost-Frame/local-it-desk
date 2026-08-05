@@ -21,8 +21,10 @@ const { publicConfig } = storeToRefs(authStore);
 const { isSaving, actionError } = storeToRefs(ticketsStore);
 const title = ref("");
 const description = ref("");
+const location = ref("");
 const categoryId = ref("");
 const priority = ref<TicketPriority>("normal");
+const urgent = ref(false);
 const file = ref<File | null>(null);
 const validationError = ref<string | null>(null);
 const createdTicket = ref<Ticket | null>(null);
@@ -59,18 +61,23 @@ async function submit(): Promise<void> {
     return;
   }
   try {
+    const requestDescription = location.value.trim()
+      ? `Location or device: ${location.value.trim()}\n\n${description.value.trim()}`
+      : description.value.trim();
     const ticket =
       createdTicket.value ??
       (await ticketsStore.createTicket({
         title: title.value.trim(),
-        description: description.value.trim(),
+        description: requestDescription,
         category_id: categoryId.value,
-        priority: priority.value,
+        priority: urgent.value ? "urgent" : priority.value,
       }));
     createdTicket.value = ticket;
     if (file.value) await ticketsStore.uploadAttachment(ticket.id, file.value);
     title.value = "";
     description.value = "";
+    location.value = "";
+    urgent.value = false;
     file.value = null;
     createdTicket.value = null;
     emit("created", ticket);
@@ -83,15 +90,15 @@ async function submit(): Promise<void> {
 <template>
   <form class="space-y-5" @submit.prevent="submit">
     <div>
-      <p class="font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--color-accent-primary)]">Named staff request</p>
-      <h2 class="mt-2 text-2xl font-bold tracking-tight">What needs attention?</h2>
+      <p class="font-mono text-[0.68rem] uppercase tracking-[0.18em] text-[var(--color-accent-primary)]">New request</p>
+      <h2 class="mt-2 text-2xl font-bold tracking-tight">What can we help with?</h2>
       <p class="mt-2 text-sm leading-6 text-[var(--color-text-secondary)]">
-        Your signed-in staff account is attached automatically. Include the room, device, and what you already tried.
+        Your name is attached automatically. Add enough detail for the technician to get started.
       </p>
     </div>
 
     <div>
-      <label for="ticket-title" class="block text-sm font-semibold">Short title</label>
+      <label for="ticket-title" class="block text-sm font-semibold">What is wrong?</label>
       <input
         id="ticket-title"
         v-model="title"
@@ -99,27 +106,46 @@ async function submit(): Promise<void> {
         maxlength="160"
         autocomplete="off"
         autofocus
-        placeholder="Example: Projector in Lab 2 will not turn on"
+        placeholder="Example: Projector will not turn on"
         :disabled="isSaving"
         required
       />
     </div>
 
     <div>
-      <label for="ticket-description" class="block text-sm font-semibold">Details</label>
+      <label for="ticket-location" class="block text-sm font-semibold">Where is it?</label>
+      <input
+        id="ticket-location"
+        v-model="location"
+        class="mt-2 min-h-11 w-full rounded-xl border bg-[var(--color-surface-primary)] px-3 py-2 outline-none focus:border-[var(--color-accent-primary)] focus:ring-2 focus:ring-[var(--color-accent-primary)]/20"
+        maxlength="200"
+        autocomplete="off"
+        placeholder="Room, office, or device name"
+        :disabled="isSaving"
+      />
+    </div>
+
+    <div>
+      <label for="ticket-description" class="block text-sm font-semibold">What happened?</label>
       <textarea
         id="ticket-description"
         v-model="description"
         class="mt-2 min-h-36 w-full resize-y rounded-xl border bg-[var(--color-surface-primary)] px-3 py-3 outline-none focus:border-[var(--color-accent-primary)] focus:ring-2 focus:ring-[var(--color-accent-primary)]/20"
         maxlength="10000"
-        placeholder="Where is it, what happened, and when did it start?"
+        placeholder="What did you see, and what have you already tried?"
         :disabled="isSaving"
         required
       />
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2">
-      <div>
+    <label class="flex min-h-12 cursor-pointer items-center gap-3 rounded-xl border bg-[var(--color-surface-secondary)] px-4 py-3 text-sm font-semibold" :style="{ borderColor: 'var(--color-border-default)' }">
+      <input v-model="urgent" type="checkbox" class="h-5 w-5 accent-[var(--color-accent-primary)]" :disabled="isSaving" />
+      <span>This is stopping a class</span>
+    </label>
+
+    <details v-if="categories.length > 1" class="rounded-xl border bg-[var(--color-surface-secondary)]" :style="{ borderColor: 'var(--color-border-default)' }">
+      <summary class="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold">Change request category</summary>
+      <div class="border-t p-4" :style="{ borderColor: 'var(--color-border-default)' }">
         <label for="ticket-category" class="block text-sm font-semibold">Category</label>
         <select
           id="ticket-category"
@@ -132,21 +158,7 @@ async function submit(): Promise<void> {
           <option v-for="category in categories" :key="category.id" :value="category.id">{{ category.name }}</option>
         </select>
       </div>
-      <div>
-        <label for="ticket-priority" class="block text-sm font-semibold">How urgent?</label>
-        <select
-          id="ticket-priority"
-          v-model="priority"
-          class="mt-2 min-h-11 w-full rounded-xl border bg-[var(--color-surface-primary)] px-3 outline-none focus:border-[var(--color-accent-primary)]"
-          :disabled="isSaving"
-        >
-          <option value="low">Low</option>
-          <option value="normal">Normal</option>
-          <option value="high">High</option>
-          <option value="urgent">Urgent</option>
-        </select>
-      </div>
-    </div>
+    </details>
 
     <FileUpload v-model="file" :max-bytes="publicConfig?.max_upload_bytes" :disabled="isSaving" />
 
@@ -163,7 +175,7 @@ async function submit(): Promise<void> {
         Cancel
       </button>
       <button type="submit" class="min-h-11 rounded-xl bg-[var(--color-accent-primary)] px-5 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50" :disabled="!canSubmit">
-        {{ isSaving ? "Submitting…" : createdTicket ? "Retry attachment" : "Submit ticket" }}
+        {{ isSaving ? "Sending…" : createdTicket ? "Retry attachment" : "Send request" }}
       </button>
     </div>
   </form>

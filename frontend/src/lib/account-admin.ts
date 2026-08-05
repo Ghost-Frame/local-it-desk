@@ -1,6 +1,7 @@
 /** Pure account-administration decisions shared by UI and contract tests. */
 
 import { ApiError } from "./api.js";
+import { loginCardText } from "./staff-onboarding.js";
 import type { OneTimeCredential, User } from "../types/api.js";
 
 /** Determines whether the target is the only currently active administrator. */
@@ -20,11 +21,12 @@ export function accountErrorMessage(error: unknown, fallback: string): string {
 }
 
 /** Formats transient onboarding material for the operator clipboard or printout. */
-export function credentialsText(credentials: OneTimeCredential[]): string {
+export function credentialsText(credentials: OneTimeCredential[], deskUrl?: string): string {
   return credentials
-    .map(
-      (entry) =>
-        `${entry.user.display_name}\nUsername: ${entry.user.username}\nTemporary password: ${entry.temporary_password}`,
+    .map((entry) =>
+      deskUrl
+        ? loginCardText(entry, deskUrl)
+        : `${entry.user.display_name}\nUsername: ${entry.user.username}\nTemporary password: ${entry.temporary_password}`,
     )
     .join("\n\n");
 }

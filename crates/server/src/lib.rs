@@ -12,6 +12,8 @@ pub mod config;
 pub mod db;
 /// HTTP-safe application errors.
 pub mod error;
+/// Cross-cutting HTTP request and response middleware.
+pub mod middleware;
 /// Help-desk domain models.
 pub mod models;
 /// HTTP route construction and retained route families.

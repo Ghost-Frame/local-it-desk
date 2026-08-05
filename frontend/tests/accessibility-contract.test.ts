@@ -35,6 +35,7 @@ test("credential and ticket forms keep visible labels, status text, and native s
     "../../src/components/tickets/TicketComments.vue",
     "../../src/components/announcements/AnnouncementEditor.vue",
     "../../src/views/SettingsView.vue",
+    "../../src/components/admin/StaffQuickAdd.vue",
   ].map(source).join("\n");
   /** Text-bearing status badge implementations. */
   const statuses = source("../../src/components/tickets/StatusBadge.vue")
@@ -45,6 +46,14 @@ test("credential and ticket forms keep visible labels, status text, and native s
   assert.ok(/aria-live="polite"/.test(forms));
   assert.ok(/\{\{\s*label\s*\}\}/.test(statuses));
   assert.ok(!/placeholder="(?:Username|Password)"[^>]*aria-label=/i.test(forms));
+  assert.ok(/min-h-11/.test(forms));
+  assert.ok(/sm:grid-cols-2/.test(forms));
+});
+
+test("staff quick add keeps validation quiet until the operator enters a roster", () => {
+  /** Paste-first staff onboarding source. */
+  const quickAdd = source("../../src/components/admin/StaffQuickAdd.vue");
+  assert.ok(/v-if="pastedNames\.trim\(\) && parsed\.errors\.length"/.test(quickAdd));
 });
 
 test("global interaction styles preserve focus, touch targets, and reduced-motion preferences", () => {

@@ -12,7 +12,7 @@ const SERVER_TARGET = "http://127.0.0.1:3000";
 export default defineConfig({
   plugins: [vue(), tailwindcss()],
   resolve: {
-    alias: { "@": resolve(__dirname, "src") },
+    alias: { "@": resolve(import.meta.dirname, "src") },
   },
   server: {
     port: 5173,

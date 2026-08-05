@@ -3,7 +3,7 @@
 use std::net::SocketAddr;
 
 use axum::Router;
-use axum::body::{Body, to_bytes};
+use axum::body::{Body, HttpBody, to_bytes};
 use axum::extract::ConnectInfo;
 use axum::http::{HeaderMap, Request, StatusCode};
 use base64::Engine;
@@ -37,6 +37,8 @@ struct TestResponse {
     headers: HeaderMap,
     /// Bounded response bytes.
     body: Vec<u8>,
+    /// Upper response-body size hint captured before the body is consumed.
+    body_size_hint_upper: Option<u64>,
 }
 
 /// Isolated attachment test application and its persisted fixture identities.
@@ -238,6 +240,7 @@ async fn send(
         .expect("response");
     let status = response.status();
     let headers = response.headers().clone();
+    let body_size_hint_upper = response.body().size_hint().upper();
     let body = to_bytes(response.into_body(), 2 * 1024 * 1024)
         .await
         .expect("bounded body")
@@ -246,6 +249,7 @@ async fn send(
         status,
         headers,
         body,
+        body_size_hint_upper,
     }
 }
 
@@ -330,6 +334,11 @@ async fn stores_randomized_verified_files_and_enforces_download_ownership() {
     .await;
     assert_eq!(owner_download.status, StatusCode::OK);
     assert_eq!(owner_download.body, png);
+    assert_eq!(owner_download.body_size_hint_upper, None);
+    assert_eq!(
+        owner_download.headers["content-length"],
+        owner_download.body.len().to_string()
+    );
     assert_eq!(owner_download.headers["x-content-type-options"], "nosniff");
     assert!(
         owner_download.headers["content-disposition"]

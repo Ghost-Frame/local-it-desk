@@ -1,0 +1,324 @@
+#!/usr/bin/env bash
+# Manages one local help desk service without exposing raw Compose operations.
+set -euo pipefail
+
+# Resolves the release directory independently of the caller's working directory.
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+readonly repo_root
+# Container CLI used for every image and Compose operation.
+readonly container_engine="${CONTAINER_ENGINE:-docker}"
+# Fixed project scope prevents accidental operations against another Compose stack.
+readonly compose_project='local-it-desk'
+# Maximum number of one-second container health polls.
+readonly health_attempts="${DESK_HEALTH_ATTEMPTS:-60}"
+# Exact appliance configuration file.
+readonly env_file="${repo_root}/.env"
+# Compose arguments shared by every production command.
+readonly -a compose_args=(
+  compose
+  --project-name "${compose_project}"
+  --env-file "${env_file}"
+  -f "${repo_root}/compose.yaml"
+  -f "${repo_root}/compose.https.yaml"
+)
+
+# Prints the supported operator commands.
+usage() {
+  printf 'Usage: scripts/desk COMMAND [OPTIONS]\n'
+  printf '\nCommands:\n'
+  printf '  install [--host HOST] [--name NAME] [--support CONTACT] [--image IMAGE]\n'
+  printf '  start\n  stop\n  status\n  certificate\n  backup\n'
+  printf '  update IMAGE\n  support\n'
+}
+
+# Prints an error and exits with an operator-input status.
+fail_usage() {
+  printf 'Desk command failed: %s\n' "$1" >&2
+  exit 2
+}
+
+# Requires the configured container engine and Compose plugin.
+require_engine() {
+  command -v "${container_engine}" >/dev/null \
+    || fail_usage "${container_engine} is not installed or not on PATH"
+  "${container_engine}" compose version >/dev/null \
+    || fail_usage "${container_engine} Compose is unavailable"
+}
+
+# Requires an installed appliance configuration.
+require_installation() {
+  [[ -s "${env_file}" ]] \
+    || fail_usage 'run scripts/desk install before this command'
+}
+
+# Accepts one DNS name or IPv4 address without scheme, path, or port.
+validate_host() {
+  local host="$1"
+  local label
+  [[ ${#host} -le 253 && "${host}" != *'..'* && "${host}" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]] \
+    || fail_usage 'host must be a DNS name or IPv4 address without https://, a port, or a path'
+  IFS='.' read -r -a host_labels <<<"${host}"
+  for label in "${host_labels[@]}"; do
+    [[ -n "${label}" && ${#label} -le 63 && ! "${label}" =~ ^- && ! "${label}" =~ -$ ]] \
+      || fail_usage 'each host label must be 1 to 63 characters and cannot start or end with a hyphen'
+  done
+}
+
+# Accepts a single-line dotenv value without syntax-significant characters.
+validate_env_value() {
+  local label="$1"
+  local value="$2"
+  [[ "${value}" != *$'\n'* && "${value}" != *$'\r'* && "${value}" != *'='* && "${value}" != *'#'* ]] \
+    || fail_usage "${label} cannot contain a newline, equals sign, or hash character"
+}
+
+# Accepts an OCI image pinned by semantic version or SHA-256 digest.
+validate_image() {
+  local image="$1"
+  [[ "${image}" =~ ^[A-Za-z0-9][A-Za-z0-9._/:@-]*$ && "${image}" != *'://'* ]] \
+    || fail_usage 'image contains characters outside an OCI image reference'
+  if [[ "${image}" =~ @sha256:[a-fA-F0-9]{64}$ ]]; then
+    return 0
+  fi
+  [[ "${image}" =~ :v?[0-9]+\.[0-9]+\.[0-9]+$ ]] \
+    || fail_usage 'image must end in a semantic version tag or @sha256 digest'
+}
+
+# Reads one exact dotenv value without evaluating file content.
+read_env_value() {
+  local key="$1"
+  awk -F= -v key="${key}" '$1 == key { sub(/^[^=]*=/, ""); print; found=1 } END { if (!found) exit 1 }' "${env_file}"
+}
+
+# Writes a new appliance configuration through an atomic same-directory rename.
+write_install_env() {
+  local host="$1"
+  local app_name="$2"
+  local support_contact="$3"
+  local image="$4"
+  local temporary_env="${repo_root}/.env.tmp.$$"
+  (
+    umask 077
+    {
+      printf 'LOCAL_IT_DESK_IMAGE=%s\n' "${image}"
+      printf 'HTTP_BIND_ADDRESS=127.0.0.1\nHTTP_PORT=8080\n'
+      printf 'APP_ORIGIN=https://%s\n' "${host}"
+      printf 'HTTPS_BIND_ADDRESS=0.0.0.0\nHTTPS_PORT=443\n'
+      printf 'HTTPS_HOST=%s\nHTTPS_ORIGIN=https://%s\n' "${host}" "${host}"
+      printf 'APP_NAME=%s\nSUPPORT_CONTACT=%s\n' "${app_name}" "${support_contact}"
+      printf 'SESSION_TTL_DAYS=14\nMAX_UPLOAD_BYTES=26214400\n'
+      printf 'MAX_TICKET_UPLOAD_BYTES=104857600\nMAX_ROSTER_BYTES=1048576\nMAX_ROSTER_ROWS=500\n'
+      printf 'RUST_LOG=info\n'
+    } >"${temporary_env}"
+    mv -f "${temporary_env}" "${env_file}"
+  )
+}
+
+# Replaces one dotenv value while preserving every other configured line.
+replace_env_value() {
+  local key="$1"
+  local value="$2"
+  local temporary_env="${repo_root}/.env.tmp.$$"
+  awk -F= -v key="${key}" -v value="${value}" \
+    'BEGIN { found=0 } $1 == key { print key "=" value; found=1; next } { print } END { if (!found) print key "=" value }' \
+    "${env_file}" >"${temporary_env}"
+  chmod 0600 "${temporary_env}"
+  mv -f "${temporary_env}" "${env_file}"
+}
+
+# Builds a local source image or pulls a versioned registry image when absent.
+ensure_image() {
+  local image="$1"
+  if "${container_engine}" image inspect "${image}" >/dev/null 2>&1; then
+    return 0
+  fi
+  if [[ "${image}" == local-it-desk:* ]]; then
+    printf 'Building %s from the reviewed source bundle...\n' "${image}"
+    "${container_engine}" build --tag "${image}" "${repo_root}"
+  else
+    printf 'Downloading %s...\n' "${image}"
+    "${container_engine}" pull "${image}"
+  fi
+  "${container_engine}" image inspect "${image}" >/dev/null
+}
+
+# Waits until both application services are healthy or reports the exact failure.
+wait_for_healthy() {
+  local service
+  local container_id
+  local health_state
+  local attempt
+  for service in app caddy; do
+    container_id="$("${container_engine}" "${compose_args[@]}" ps --quiet "${service}")"
+    [[ -n "${container_id}" ]] || { printf '%s container was not created.\n' "${service}" >&2; return 1; }
+    health_state='starting'
+    for ((attempt = 1; attempt <= health_attempts; attempt += 1)); do
+      health_state="$("${container_engine}" inspect "${container_id}" --format '{{.State.Health.Status}}')"
+      [[ "${health_state}" == 'healthy' ]] && break
+      [[ "${health_state}" == 'unhealthy' ]] && break
+      sleep 1
+    done
+    [[ "${health_state}" == 'healthy' ]] \
+      || { printf '%s health check ended in state %s.\n' "${service}" "${health_state}" >&2; return 1; }
+  done
+}
+
+# Starts or recreates the exact appliance project and enforces its health gate.
+start_appliance() {
+  local image
+  image="$(read_env_value LOCAL_IT_DESK_IMAGE)"
+  validate_image "${image}"
+  ensure_image "${image}"
+  "${container_engine}" "${compose_args[@]}" up --detach --no-build
+  wait_for_healthy
+}
+
+# Exports the public local CA certificate used by managed client devices.
+export_certificate() {
+  local output_dir="${repo_root}/exports"
+  local output_path="${output_dir}/local-it-desk-root.crt"
+  local temporary_path="${output_path}.tmp.$$"
+  install -d -m 0700 "${output_dir}"
+  "${container_engine}" "${compose_args[@]}" exec -T caddy \
+    cat /caddy-data/caddy/pki/authorities/local/root.crt >"${temporary_path}"
+  [[ -s "${temporary_path}" ]] || { printf 'The server did not return a trust certificate.\n' >&2; return 1; }
+  chmod 0644 "${temporary_path}"
+  mv -f "${temporary_path}" "${output_path}"
+  printf 'Public trust certificate: %s\n' "${output_path}"
+}
+
+# Creates, verifies, exports, and checksums one online backup archive.
+create_backup() {
+  local stamp
+  local backup_name
+  local output_dir="${repo_root}/backups"
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  backup_name="local-it-desk-${stamp}.tar.gz"
+  install -d -m 0700 "${output_dir}"
+  "${container_engine}" "${compose_args[@]}" exec -T app \
+    /app/local-it-desk-admin backup \
+    --database /state/current/data/local-it-desk.db \
+    --attachments /state/current/attachments \
+    --branding /state/current/branding \
+    --output "/state/backups/${backup_name}"
+  "${container_engine}" "${compose_args[@]}" exec -T app \
+    /app/local-it-desk-admin verify-backup --archive "/state/backups/${backup_name}"
+  "${container_engine}" "${compose_args[@]}" cp \
+    "app:/state/backups/${backup_name}" "${output_dir}/${backup_name}"
+  "${container_engine}" "${compose_args[@]}" run --rm --no-deps \
+    --volume "${output_dir}:/operator-backups:ro" \
+    --entrypoint /app/local-it-desk-admin app \
+    verify-backup --archive "/operator-backups/${backup_name}"
+  (
+    cd "${output_dir}"
+    sha256sum "${backup_name}" >"${backup_name}.sha256"
+    chmod 0600 "${backup_name}" "${backup_name}.sha256"
+  )
+  printf 'Verified backup: %s\n' "${output_dir}/${backup_name}"
+  printf 'Copy the archive and .sha256 file to a different managed device.\n'
+}
+
+# Creates a bounded diagnostics archive after redacting common credentials and identities.
+create_support_bundle() {
+  local stamp
+  local support_root="${repo_root}/support"
+  local bundle_dir
+  local bundle_path
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  bundle_dir="${support_root}/${stamp}"
+  bundle_path="${support_root}/local-it-desk-support-${stamp}.tar.gz"
+  install -d -m 0700 "${bundle_dir}"
+  {
+    printf 'Generated (UTC): %s\n' "${stamp}"
+    "${container_engine}" version 2>&1 || true
+    "${container_engine}" "${compose_args[@]}" ps 2>&1 || true
+  } | redact_support >"${bundle_dir}/status.txt"
+  "${container_engine}" "${compose_args[@]}" logs --no-color --tail 200 app caddy 2>&1 \
+    | redact_support >"${bundle_dir}/logs.txt" || true
+  chmod 0600 "${bundle_dir}/status.txt" "${bundle_dir}/logs.txt"
+  tar -czf "${bundle_path}" -C "${support_root}" "${stamp}"
+  chmod 0600 "${bundle_path}"
+  sha256sum "${bundle_path}" >"${bundle_path}.sha256"
+  chmod 0600 "${bundle_path}.sha256"
+  printf 'Sanitized support bundle: %s\n' "${bundle_path}"
+}
+
+# Redacts likely emails, IP addresses, cookies, and secret-bearing log fields.
+redact_support() {
+  sed -E \
+    -e 's/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/[redacted-email]/g' \
+    -e 's/([0-9]{1,3}\.){3}[0-9]{1,3}/[redacted-ip]/g' \
+    -e 's/([Pp]assword|[Tt]oken|[Ss]ecret|[Aa]uthorization|[Cc]ookie)([=: ]+)[^ ,;]+/\1\2[redacted]/g'
+}
+
+# Installs configuration, starts the appliance, and exports its public trust root.
+command_install() {
+  local host='helpdesk.local'
+  local app_name='Local IT Desk'
+  local support_contact=''
+  local image='local-it-desk:0.1.0'
+  while (( $# > 0 )); do
+    case "$1" in
+      --host) [[ $# -ge 2 ]] || fail_usage '--host requires a value'; host="$2"; shift 2 ;;
+      --name) [[ $# -ge 2 ]] || fail_usage '--name requires a value'; app_name="$2"; shift 2 ;;
+      --support) [[ $# -ge 2 ]] || fail_usage '--support requires a value'; support_contact="$2"; shift 2 ;;
+      --image) [[ $# -ge 2 ]] || fail_usage '--image requires a value'; image="$2"; shift 2 ;;
+      *) fail_usage "unknown install option: $1" ;;
+    esac
+  done
+  [[ ! -e "${env_file}" ]] || fail_usage '.env already exists; use scripts/desk start'
+  validate_host "${host}"
+  validate_env_value 'desk name' "${app_name}"
+  validate_env_value 'support contact' "${support_contact}"
+  validate_image "${image}"
+  write_install_env "${host}" "${app_name}" "${support_contact}" "${image}"
+  start_appliance
+  export_certificate
+  printf '\nDesk ready: https://%s\n' "${host}"
+  printf 'Open that address to create the one administrator account.\n'
+}
+
+# Updates to one pinned image after a verified backup and rolls configuration back on failure.
+command_update() {
+  local next_image="${1:-}"
+  local previous_image
+  local env_backup
+  [[ $# -eq 1 ]] || fail_usage 'update requires exactly one image reference'
+  validate_image "${next_image}"
+  previous_image="$(read_env_value LOCAL_IT_DESK_IMAGE)"
+  [[ "${next_image}" != "${previous_image}" ]] || fail_usage 'the requested image is already configured'
+  create_backup
+  env_backup="${repo_root}/backups/env-before-update-$(date -u +%Y%m%dT%H%M%SZ)-$$"
+  cp -p "${env_file}" "${env_backup}"
+  chmod 0600 "${env_backup}"
+  ensure_image "${next_image}"
+  replace_env_value LOCAL_IT_DESK_IMAGE "${next_image}"
+  if start_appliance; then
+    printf 'Update completed: %s\n' "${next_image}"
+    return 0
+  fi
+  printf 'Update health failed; restoring %s.\n' "${previous_image}" >&2
+  cp -p "${env_backup}" "${env_file}"
+  "${container_engine}" "${compose_args[@]}" up --detach --no-build
+  return 1
+}
+
+require_engine
+[[ "${health_attempts}" =~ ^[1-9][0-9]*$ ]] \
+  || fail_usage 'DESK_HEALTH_ATTEMPTS must be a positive whole number'
+command_name="${1:-}"
+[[ -n "${command_name}" ]] || { usage; exit 2; }
+shift
+
+case "${command_name}" in
+  install) command_install "$@" ;;
+  start) [[ $# -eq 0 ]] || fail_usage 'start takes no options'; require_installation; start_appliance; printf 'Desk is healthy.\n' ;;
+  stop) [[ $# -eq 0 ]] || fail_usage 'stop takes no options'; require_installation; "${container_engine}" "${compose_args[@]}" stop ;;
+  status) [[ $# -eq 0 ]] || fail_usage 'status takes no options'; require_installation; "${container_engine}" "${compose_args[@]}" ps ;;
+  certificate) [[ $# -eq 0 ]] || fail_usage 'certificate takes no options'; require_installation; export_certificate ;;
+  backup) [[ $# -eq 0 ]] || fail_usage 'backup takes no options'; require_installation; create_backup ;;
+  update) require_installation; command_update "$@" ;;
+  support) [[ $# -eq 0 ]] || fail_usage 'support takes no options'; require_installation; create_support_bundle ;;
+  help|--help|-h) usage ;;
+  *) fail_usage "unknown command: ${command_name}" ;;
+esac

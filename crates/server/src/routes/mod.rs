@@ -159,7 +159,11 @@ pub fn build_router(config: Config, pool: Pool) -> Router {
         router = router.fallback_service(frontend);
     }
 
-    router.with_state(state)
+    router
+        .layer(axum::middleware::from_fn(
+            crate::middleware::security_headers::apply,
+        ))
+        .with_state(state)
 }
 
 /// Reports process liveness without touching SQLite or other dependencies.

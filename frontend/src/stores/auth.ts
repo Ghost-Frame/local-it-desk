@@ -31,7 +31,7 @@ export const useAuthStore = defineStore("auth", () => {
   const canWorkTickets = computed(
     () => user.value?.role === "technician" || user.value?.role === "administrator",
   );
-  /** Whether the current role can access Administration. */
+  /** Whether the current role can access administrator-only controls. */
   const isAdministrator = computed(() => user.value?.role === "administrator");
   /** Display name used by the application shell. */
   const displayName = computed(() => user.value?.display_name ?? "Signed out");

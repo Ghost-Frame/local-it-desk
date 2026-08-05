@@ -247,10 +247,7 @@ fn mutated_archive(valid_archive: &Path, temp: &TempDir, mutation: Mutation) -> 
         Mutation::BrokenDocumentationLink => {
             let path = bundle_root.join("docs/RUNBOOK.md");
             let documentation = fs::read_to_string(&path).expect("read runbook fixture");
-            let broken = documentation.replace(
-                "[Staff Roster Import](ROSTER-IMPORT.md)",
-                "[Staff Roster Import](MISSING-ROSTER-IMPORT.md)",
-            );
+            let broken = documentation.replace("ROSTER-IMPORT.md", "MISSING-ROSTER-IMPORT.md");
             assert_ne!(
                 documentation, broken,
                 "linked roster documentation fixture must be replaced"

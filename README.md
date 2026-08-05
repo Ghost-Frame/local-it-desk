@@ -9,7 +9,22 @@ The application uses local usernames and passwords. It does not need a school
 email tenant, an outside identity provider, or internet access while running.
 Application data stays in one Docker volume on the host.
 
-## Start an evaluation
+## Start here
+
+For a real local-network installation, use the
+[five-part Quick Start](QUICKSTART.md). It covers the host, one-command install,
+trusted HTTPS, the guided first run, named staff accounts, and everyday backup
+commands. Keep the [Operator Runbook](docs/RUNBOOK.md) beside it for recovery
+and maintenance. The printable [Staff Guide](docs/STAFF-GUIDE.md) explains the
+day-to-day workflow without administrator details.
+
+The normal Linux or WSL installation command is:
+
+~~~sh runbook-check
+./scripts/desk install --host helpdesk.local --name 'School IT Desk' --support 'Call the main office'
+~~~
+
+## Optional evaluation
 
 Plain HTTP is for evaluation with throwaway accounts.
 Do not enter real staff credentials or operational ticket data until trusted
@@ -31,10 +46,9 @@ administrator. Stop it with
 docker compose --project-name local-it-desk-evaluation stop. Its isolated
 named volume remains intact and is never reused by the school deployment.
 
-For a school deployment, follow the [operator runbook](docs/RUNBOOK.md), then
-complete the [trusted HTTPS procedure](docs/TLS.md) before creating staff
-accounts. Backup and recovery procedures are in
-[Backup and Restore](docs/BACKUP-RESTORE.md).
+For a school deployment, use the Quick Start above rather than this HTTP
+evaluation. Backup and recovery procedures are in [Backup and
+Restore](docs/BACKUP-RESTORE.md).
 
 ## Install a published release
 
@@ -55,8 +69,8 @@ accounts or ticket data.
 
 ## Product boundary
 
-The browser contains Dashboard, Tickets, Announcements, Settings, and
-Administration. Roles are cumulative:
+The browser contains Tickets, Announcements, Settings, and a worker-only Manage
+Desk area. Roles are cumulative:
 
 - A requester can create and follow their own tickets.
 - A technician can work the shared ticket queue.
@@ -102,6 +116,7 @@ cargo clippy --workspace --all-targets --all-features -- -D warnings
 pnpm --dir frontend check
 bash scripts/container-contract.sh
 bash scripts/compose-contract.sh
+bash scripts/https-smoke.sh
 bash scripts/check-runbook.sh
 bash scripts/smoke-compose.sh
 bash scripts/check-dependencies.sh

@@ -70,6 +70,34 @@ async fn public_foundation_routes_match_contract() {
     assert!(config_body.get("cookie_secure").is_none());
 }
 
+/// Confirms every application response carries the browser hardening baseline.
+#[tokio::test]
+async fn responses_include_browser_security_headers() {
+    let (app, _temp) = test_router().await;
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/health/live")
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("router response");
+    let headers = response.headers();
+
+    assert_eq!(headers["x-content-type-options"], "nosniff");
+    assert_eq!(headers["x-frame-options"], "DENY");
+    assert_eq!(headers["referrer-policy"], "no-referrer");
+    assert_eq!(
+        headers["permissions-policy"],
+        "camera=(), geolocation=(), microphone=(), payment=(), usb=()"
+    );
+    assert_eq!(
+        headers["content-security-policy"],
+        "default-src 'self'; base-uri 'none'; connect-src 'self'; font-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' data:; object-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'"
+    );
+}
+
 /// Confirms retained API families are mounted behind authentication.
 #[tokio::test]
 async fn retained_api_families_are_mounted() {

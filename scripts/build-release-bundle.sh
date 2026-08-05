@@ -95,6 +95,7 @@ fi
 # Files copied without source-code or operator data.
 readonly release_inputs=(
   .env.example
+  QUICKSTART.md
   compose.yaml
   compose.https.yaml
   deploy/Caddyfile
@@ -102,6 +103,7 @@ readonly release_inputs=(
   docs/TLS.md
   docs/BACKUP-RESTORE.md
   docs/ROSTER-IMPORT.md
+  docs/STAFF-GUIDE.md
   release/README.txt
   release/allowed_signers
   scripts/restore-compose.sh

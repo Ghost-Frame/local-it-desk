@@ -2,9 +2,21 @@
 # Validates operator documentation paths, safety language, and marked shell blocks.
 set -euo pipefail
 
-# Repository-relative documentation files governed by this contract.
-readonly runbook_files=(
+# Repository-relative documentation files governed by link and safety checks.
+readonly documentation_files=(
   README.md
+  QUICKSTART.md
+  docs/RUNBOOK.md
+  docs/TLS.md
+  docs/BACKUP-RESTORE.md
+  docs/ROSTER-IMPORT.md
+  docs/STAFF-GUIDE.md
+)
+
+# Documentation that contains shell commands requiring syntax checks.
+readonly command_files=(
+  README.md
+  QUICKSTART.md
   docs/RUNBOOK.md
   docs/TLS.md
   docs/BACKUP-RESTORE.md
@@ -19,7 +31,14 @@ readonly required_paths=(
   docs/ARCHITECTURE.md
   docs/EXCLUDED-SURFACES.md
   docs/ROSTER-IMPORT.md
+  docs/STAFF-GUIDE.md
+  QUICKSTART.md
+  frontend/src/components/admin/StaffQuickAdd.vue
   scripts/restore-compose.sh
+  scripts/desk
+  scripts/desk.ps1
+  scripts/desk-contract.sh
+  scripts/https-smoke.sh
   scripts/smoke-compose.sh
 )
 
@@ -66,7 +85,7 @@ check_shell_blocks() {
   while IFS= read -r line || [[ -n "$line" ]]; do
     if [[ "$line" == '~~~sh runbook-check' ]]; then
       ((block_count += 1))
-      block_file="$output_dir/$(basename "$source_file").$block_count.sh"
+      block_file="$output_dir/${source_file##*/}.$block_count.sh"
       printf '#!/usr/bin/env bash\nset -euo pipefail\n' > "$block_file"
       in_block=1
       continue
@@ -85,7 +104,7 @@ check_shell_blocks() {
   (( block_count > 0 )) || fail "$source_file has no checked command blocks"
 }
 
-for path in "${runbook_files[@]}" "${required_paths[@]}"; do
+for path in "${documentation_files[@]}" "${required_paths[@]}"; do
   [[ -e "$path" ]] || fail "required path is missing: $path"
 done
 
@@ -93,16 +112,19 @@ done
 block_dir="$(mktemp -d)"
 trap 'find "$block_dir" -type f -delete 2>/dev/null || true; rmdir "$block_dir" 2>/dev/null || true' EXIT
 
-for file in "${runbook_files[@]}"; do
+for file in "${documentation_files[@]}"; do
   check_local_links "$file"
+done
+
+for file in "${command_files[@]}"; do
   check_shell_blocks "$file" "$block_dir"
 done
 
 # Rejects release placeholders and commands with broad destructive scope.
-if grep -nEi '(<[^>]+>|YOUR_|CHANGE_ME|REPLACE_ME|example\.com)' "${runbook_files[@]}"; then
+if grep -nEi '(<[^>]+>|YOUR_|CHANGE_ME|REPLACE_ME|example\.com)' "${documentation_files[@]}"; then
   fail 'documentation contains a placeholder'
 fi
-if grep -nEi '(docker compose down|volume (rm|prune)|system prune|rm[[:space:]]+-rf|chmod[[:space:]]+777|--privileged|docker\.sock)' "${runbook_files[@]}"; then
+if grep -nEi '(docker compose down|volume (rm|prune)|system prune|rm[[:space:]]+-rf|chmod[[:space:]]+777|--privileged|docker\.sock)' "${documentation_files[@]}"; then
   fail 'documentation contains a forbidden broad or privileged operation'
 fi
 
@@ -119,8 +141,15 @@ grep -Fqi 'Image and data rollback' docs/RUNBOOK.md || fail 'runbook lacks rollb
 grep -Fqi 'immutable SHA-256 digest' docs/RUNBOOK.md || fail 'runbook lacks a digest-pinned update gate'
 grep -Fqi 'Host migration and safe stop' docs/RUNBOOK.md || fail 'runbook lacks host migration'
 grep -Fqi 'Sanitized support bundle' docs/RUNBOOK.md || fail 'runbook lacks sanitized diagnostics'
+grep -Fq './scripts/desk install' QUICKSTART.md || fail 'quick start lacks the appliance installer'
+grep -Fq './scripts/desk backup' QUICKSTART.md || fail 'quick start lacks the backup command'
+grep -Fqi 'anonymous requests are not available' QUICKSTART.md || fail 'quick start lacks the named-account boundary'
+grep -Fqi 'QR code contains only the desk address' docs/STAFF-GUIDE.md || fail 'staff guide lacks the QR privacy boundary'
 
 bash -n scripts/restore-compose.sh
+bash -n scripts/desk
+bash -n scripts/desk-contract.sh
+bash -n scripts/https-smoke.sh
 bash -n scripts/smoke-compose.sh
 "${container_engine}" compose --env-file .env.example -f compose.yaml config --quiet
 "${container_engine}" compose --env-file .env.example -f compose.yaml -f compose.https.yaml config --quiet

@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::net::SocketAddr;
 
 use axum::Router;
-use axum::body::{Body, to_bytes};
+use axum::body::{Body, HttpBody, to_bytes};
 use axum::extract::ConnectInfo;
 use axum::http::{HeaderMap, Request, StatusCode};
 use base64::Engine;
@@ -38,6 +38,8 @@ struct TestResponse {
     headers: HeaderMap,
     /// Bounded response bytes.
     body: Vec<u8>,
+    /// Upper response-body size hint captured before the body is consumed.
+    body_size_hint_upper: Option<u64>,
 }
 
 /// Isolated settings application with persisted administrator and requester fixtures.
@@ -188,6 +190,7 @@ async fn send(
         .expect("response");
     let status = response.status();
     let headers = response.headers().clone();
+    let body_size_hint_upper = response.body().size_hint().upper();
     let body = to_bytes(response.into_body(), 1024 * 1024)
         .await
         .expect("bounded body")
@@ -196,6 +199,7 @@ async fn send(
         status,
         headers,
         body,
+        body_size_hint_upper,
     }
 }
 
@@ -487,6 +491,11 @@ async fn logo_upload_rejects_active_content_and_serves_safe_raster_bytes() {
     .await;
     assert_eq!(served.status, StatusCode::OK);
     assert_eq!(served.body, png);
+    assert_eq!(served.body_size_hint_upper, None);
+    assert_eq!(
+        served.headers["content-length"],
+        served.body.len().to_string()
+    );
     assert_eq!(served.headers["content-type"], "image/png");
     assert_eq!(served.headers["x-content-type-options"], "nosniff");
 }

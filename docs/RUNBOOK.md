@@ -2,8 +2,9 @@
 
 This runbook is for the staff member who owns the Local IT Desk host and the
 administrator account. Run commands from the extracted release directory in a
-Bash shell. Keep that directory, its .env file, and its certs directory
-restricted to the operator.
+Bash shell. Keep that directory and its `.env`, `backups`, and `support`
+contents restricted to the operator. Begin with the [Quick Start](../QUICKSTART.md)
+for a normal installation. This document covers deeper operation and recovery.
 
 The deployment pattern is PROVEN-IN-CONTEXT: one isolated application
 container, one reverse proxy at the network edge, and one named state volume.
@@ -19,8 +20,9 @@ LAN address and DNS name. Install host security updates, enable the host
 firewall, and allow HTTPS only from school-managed networks.
 
 Docker Desktop can run an evaluation on Windows, macOS, or Linux. On Windows,
-use a WSL 2 Bash shell with Docker Desktop integration. Keep Docker Desktop
-running before entering commands.
+use the `scripts/desk.ps1` wrapper from PowerShell or a WSL 2 Bash shell with
+Docker Desktop integration. Keep Docker Desktop running before entering
+commands.
 
 Verify the engine and Compose:
 
@@ -112,8 +114,17 @@ uses the default local-it-desk project and a different named volume.
 
 ## 4. School HTTPS
 
-Complete [TLS](TLS.md). The school profile removes the application's direct
-HTTP port, enables secure cookies, and exposes only the reverse proxy on HTTPS.
+Follow the [Quick Start](../QUICKSTART.md) and [Trusted HTTPS](TLS.md). The
+launcher creates the configuration, starts the school profile, waits for
+health, and exports the public local trust root. The school profile removes the
+application's direct HTTP port, enables secure cookies, and exposes only the
+reverse proxy on HTTPS.
+
+~~~sh runbook-check
+./scripts/desk install --host helpdesk.local --name 'School IT Desk' --support 'Call the main office'
+./scripts/desk status
+./scripts/desk certificate
+~~~
 
 Do not create real staff accounts until all of these observations are true:
 
@@ -124,7 +135,8 @@ Do not create real staff accounts until all of these observations are true:
 
 ## 5. Staff accounts and roster
 
-Sign in as the administrator and open Administration, then Accounts.
+During first-run setup, paste staff names into the guided staff step. Later,
+sign in as the administrator and open **Manage Desk**, then **People**.
 
 - Create one named account per staff member. Never share accounts.
 - Give ordinary staff the requester role.
@@ -134,9 +146,12 @@ Sign in as the administrator and open Administration, then Accounts.
 - Ask the recipient to sign in and replace it immediately.
 - Deactivate accounts when staff leave. Deactivation revokes their sessions.
 
-For several accounts, use the browser roster preview and apply workflow in
-[Staff Roster Import](ROSTER-IMPORT.md). Keep the returned one-time passwords
-out of email lists, tickets, screenshots, and support bundles.
+For several accounts, paste one staff name per line into **Quick add staff**.
+The application suggests unique usernames, previews a requester-only roster,
+and creates printable one-time login cards. Use the CSV workflow in [Staff
+Roster Import](ROSTER-IMPORT.md) only when an existing spreadsheet is easier.
+Keep returned one-time passwords out of email lists, tickets, screenshots, and
+support bundles.
 
 The application prevents removal of the final active administrator. The
 initial single-administrator design is supported, but a planned absence leaves
@@ -145,15 +160,10 @@ directory where an authorized substitute can reach them.
 
 ## 6. Daily status, disk, and logs
 
-For the HTTPS deployment, define the Compose command once in each shell:
+Use the launcher for the routine health view, then check host disk capacity:
 
 ~~~sh runbook-check
-compose=(docker compose -f compose.yaml -f compose.https.yaml)
-"${compose[@]}" ps
-app_container="$("${compose[@]}" ps --quiet app)"
-test -n "$app_container"
-docker inspect "$app_container" --format 'health={{.State.Health.Status}} image={{.Config.Image}}'
-"${compose[@]}" exec -T app /bin/sh -c 'du -sh /state/current /state/backups'
+./scripts/desk status
 docker system df
 ~~~
 
@@ -173,33 +183,20 @@ Use the sanitized support procedure in section 13.
 
 ## 7. Pinned update and pre-update backup
 
-Never update by using a floating image tag. Record the current digest, create
-and verify a backup, copy it off host, then update one pinned image reference.
-Follow [Backup and Restore](BACKUP-RESTORE.md) through the off-host verification
-step before continuing.
-
-Preserve the current environment file, enter the approved image reference, and
-render the new configuration:
+Never update by using a floating image tag. Copy a current verified backup off
+host, then give the launcher the approved immutable SHA-256 digest.
+It creates another verified backup, preserves the current environment, checks
+the new image, and restores the prior image setting if health fails.
 
 ~~~sh runbook-check
-update_stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-mkdir -p backups
-cp .env "backups/env-before-$update_stamp"
 read -r -p 'Approved digest-pinned image reference: ' next_image
 test -n "$next_image"
 if [[ ! "$next_image" =~ @sha256:[0-9a-f]{64}$ ]]; then
   printf 'The image reference must end in an immutable SHA-256 digest.\n' >&2
   exit 1
 fi
-awk -v image="$next_image" \
-  'BEGIN { replaced=0 } /^LOCAL_IT_DESK_IMAGE=/ { print "LOCAL_IT_DESK_IMAGE=" image; replaced=1; next } { print } END { if (!replaced) exit 1 }' \
-  .env > .env.next
-mv .env.next .env
-compose=(docker compose -f compose.yaml -f compose.https.yaml)
-"${compose[@]}" config --quiet
-"${compose[@]}" pull app
-"${compose[@]}" up --detach app
-"${compose[@]}" ps
+./scripts/desk update "$next_image"
+./scripts/desk status
 ~~~
 
 Expected result: the replacement app becomes healthy and caddy stays healthy.
@@ -209,10 +206,15 @@ new version has passed the school's normal operating period.
 
 ## 8. Backup verification and off-host copy
 
-Follow [Backup and Restore](BACKUP-RESTORE.md). A file is not an accepted
-backup until the maintenance command verifies it, it has been copied to a
-different device or managed storage system, and the copied checksum has been
-verified at that destination.
+Create an application backup with `./scripts/desk backup`, then follow [Backup
+and Restore](BACKUP-RESTORE.md). A file is not an accepted backup until the
+maintenance command verifies it, it has been copied to a different device or
+managed storage system, and the copied checksum has been verified at that
+destination.
+
+~~~sh runbook-check
+./scripts/desk backup
+~~~
 
 ## 9. Restore rehearsal and production restore
 
@@ -278,15 +280,15 @@ archive timestamp and business impact before applying it.
 
 Before migration, create and verify a current backup and copy it off host.
 Record the pinned image reference and HTTPS DNS name. Copy the release
-directory, .env, the verified archive, checksum, and certificate files through
-the school's approved protected channel.
+directory, `.env`, and the verified archive and checksum through the school's
+approved protected channel. A new host creates a new local HTTPS authority, so
+plan to redeploy its exported public root to staff devices.
 
 Stop without deleting containers or volumes:
 
 ~~~sh runbook-check
-compose=(docker compose -f compose.yaml -f compose.https.yaml)
-"${compose[@]}" stop
-"${compose[@]}" ps --all
+./scripts/desk stop
+./scripts/desk status
 ~~~
 
 On the new host, verify the release checksum, load or build the approved image,
@@ -305,33 +307,7 @@ Create a bounded diagnostic bundle that omits application data and redacts
 common identifiers:
 
 ~~~sh runbook-check
-compose=(docker compose -f compose.yaml -f compose.https.yaml)
-support_dir="$(mktemp -d "$PWD/local-it-desk-support.XXXXXX")"
-chmod 0700 "$support_dir"
-"${compose[@]}" ps > "$support_dir/compose-ps.txt"
-"${compose[@]}" images > "$support_dir/compose-images.txt"
-app_container="$("${compose[@]}" ps --quiet app)"
-docker inspect "$app_container" \
-  --format 'status={{.State.Status}} health={{.State.Health.Status}} image={{.Config.Image}} started={{.State.StartedAt}}' \
-  > "$support_dir/app-state.txt"
-"${compose[@]}" logs --no-color --tail 200 app caddy 2>&1 |
-  sed -E \
-    -e 's/[0-9a-fA-F]{8}-[0-9a-fA-F-]{27,}/[ID]/g' \
-    -e 's/(^|[^0-9])([0-9]{1,3}\.){3}[0-9]{1,3}([^0-9]|$)/\1[IP]\3/g' \
-    -e 's/([?&][A-Za-z_]+)=([^ &]+)/\1=[REDACTED]/g' \
-    -e 's/((authorization|cookie|password|token|secret|email|username)[=: ]+)[^ ,;"]+/\1[REDACTED]/gI' \
-  > "$support_dir/recent-logs.txt"
-if grep -ERni \
-  'authorization:|set-cookie:|temporary_password|csrf_token|bearer [A-Za-z0-9._~-]+|[[:alnum:]._%+-]+@[[:alnum:].-]+\.[[:alpha:]]{2,}|(^|[^0-9])([0-9]{1,3}\.){3}[0-9]{1,3}([^0-9]|$)' \
-  "$support_dir"; then
-  printf 'Sensitive-looking content remains. Review and redact before sharing.\n' >&2
-  exit 1
-fi
-support_archive="$support_dir.tar.gz"
-tar --create --gzip --file "$support_archive" \
-  --directory "$(dirname "$support_dir")" "$(basename "$support_dir")"
-sha256sum "$support_archive"
-printf 'Review every file before sharing: %s\n' "$support_archive"
+./scripts/desk support
 ~~~
 
 Open every text file and check it against school privacy policy before sending

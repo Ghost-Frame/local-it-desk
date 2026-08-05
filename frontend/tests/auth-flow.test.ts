@@ -24,8 +24,9 @@ function route(
   path: string,
   requiresAuth = false,
   requiresAdministrator = false,
+  requiresWorker = false,
 ): GuardRoute {
-  return { path, requiresAuth, requiresAdministrator };
+  return { path, requiresAuth, requiresAdministrator, requiresWorker };
 }
 
 /** Loads one frontend source file relative to the compiled test location. */
@@ -76,10 +77,31 @@ test("administrator routes allow administrators and redirect requesters", () => 
   };
   assert.equal(
     resolveGuardRedirect(route("/administration", true, true), requester),
-    "/",
+    "/tickets",
   );
   assert.equal(
     resolveGuardRedirect(route("/administration", true, true), administrator),
+    undefined,
+  );
+});
+
+test("support workspace allows technicians and redirects requesters", () => {
+  const requester: AuthGuardState = {
+    ...SIGNED_OUT,
+    isAuthenticated: true,
+    userRole: "requester",
+  };
+  const technician: AuthGuardState = {
+    ...requester,
+    canWorkTickets: true,
+    userRole: "technician",
+  };
+  assert.equal(
+    resolveGuardRedirect(route("/administration", true, false, true), requester),
+    "/tickets",
+  );
+  assert.equal(
+    resolveGuardRedirect(route("/administration", true, false, true), technician),
     undefined,
   );
 });

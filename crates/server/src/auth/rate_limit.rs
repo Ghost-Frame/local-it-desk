@@ -13,6 +13,8 @@ const DEFAULT_MAX_ATTEMPTS: u32 = 5;
 const DEFAULT_WINDOW: Duration = Duration::from_secs(15 * 60);
 /// Default lockout after the attempt threshold is reached.
 const DEFAULT_LOCKOUT: Duration = Duration::from_secs(15 * 60);
+/// Maximum identity and peer pairs retained across all public login attempts.
+const MAX_TRACKED_ATTEMPTS: usize = 4_096;
 
 /// Shareable limiter for public credential endpoints.
 #[derive(Clone)]
@@ -76,6 +78,9 @@ impl LoginRateLimiter {
             .lock()
             .unwrap_or_else(|error| error.into_inner());
         entries.retain(|_, state| !state.is_stale(now, self.window, self.lockout));
+        if !entries.contains_key(&key) && entries.len() >= MAX_TRACKED_ATTEMPTS {
+            return Err(AppError::TooManyRequests);
+        }
         if entries
             .get(&key)
             .and_then(|state| state.blocked_until)
@@ -94,6 +99,9 @@ impl LoginRateLimiter {
             .entries
             .lock()
             .unwrap_or_else(|error| error.into_inner());
+        if !entries.contains_key(&key) && entries.len() >= MAX_TRACKED_ATTEMPTS {
+            return;
+        }
         let state = entries.entry(key).or_insert(AttemptState {
             window_started: now,
             failures: 0,
@@ -142,5 +150,32 @@ fn attempt_key(identity: &str, peer: IpAddr) -> AttemptKey {
             .take(64)
             .collect(),
         peer,
+    }
+}
+
+/// Regression coverage for bounded credential-throttling state.
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Confirms unique identity floods cannot grow the tracked-attempt map without limit.
+    #[test]
+    fn unique_identity_flood_is_bounded_and_fails_closed() {
+        let limiter = LoginRateLimiter::default();
+        let peer = "192.0.2.10".parse().expect("static peer address");
+        for index in 0..=MAX_TRACKED_ATTEMPTS {
+            limiter.record_failure(&format!("unknown-{index}"), peer);
+        }
+
+        let tracked = limiter
+            .entries
+            .lock()
+            .unwrap_or_else(|error| error.into_inner())
+            .len();
+        assert!(tracked <= MAX_TRACKED_ATTEMPTS);
+        assert!(matches!(
+            limiter.check("another-unknown-user", peer),
+            Err(AppError::TooManyRequests)
+        ));
     }
 }

@@ -99,13 +99,15 @@ test("CSV preview and atomic apply send same-origin CSRF-protected text requests
   }
 });
 
-test("administration surface includes role-gated tabs and explicit lifecycle confirmations", () => {
+test("Manage Desk groups routine work and keeps advanced lifecycle controls", () => {
   const admin = source("../../src/views/AdminView.vue");
   const row = source("../../src/components/admin/UserRow.vue");
 
-  for (const label of ["Staff", "Roster import", "Sessions", "Audit"]) {
+  for (const label of ["Tickets", "People", "Desk", "Advanced", "Sessions", "Audit log"]) {
     assert.ok(admin.includes(label), `missing ${label} tab`);
   }
+  assert.ok(/Import a CSV roster instead/.test(admin));
+  assert.ok(/visibleTabs/.test(admin));
   assert.ok(/isAdministrator/.test(admin));
   assert.ok(/<dialog/.test(row));
   assert.ok(/showModal/.test(row));
@@ -120,9 +122,28 @@ test("one-time onboarding material can be copied or printed without browser pers
   assert.ok(/temporary_password/.test(panel));
   assert.ok(/clipboard\.writeText/.test(panel));
   assert.ok(/window\.print/.test(panel));
+  assert.ok(/loginQrPayload\(props\.deskUrl\)/.test(panel));
+  assert.ok(/QR code for the desk address only/.test(panel));
   for (const forbidden of ["localstorage", "sessionstorage", "indexeddb"]) {
     assert.equal(normalized.includes(forbidden), false, `onboarding source contains ${forbidden}`);
   }
+});
+
+test("guided setup keeps branding, administrator, staff, and finish as explicit stages", () => {
+  const setup = source("../../src/views/SetupView.vue");
+  const quickAdd = source("../../src/components/admin/StaffQuickAdd.vue");
+
+  for (const phrase of ["Step {{ step }} of 4", "Name the desk", "Create the technician account", "Add staff who can submit requests", "The desk is ready."]) {
+    assert.ok(setup.includes(phrase), `setup is missing ${phrase}`);
+  }
+  assert.ok(/authStore\.setup/.test(setup));
+  assert.ok(/api\.updateAdminSettings/.test(setup));
+  assert.ok(/authStore\.refreshPublicConfig/.test(setup));
+  assert.ok(/StaffQuickAdd/.test(setup));
+  assert.ok(/buildRequesterRosterCsv/.test(quickAdd));
+  assert.ok(/previewRoster/.test(quickAdd));
+  assert.ok(/applyRoster/.test(quickAdd));
+  assert.ok(/requester/.test(quickAdd));
 });
 
 test("roster UI displays preview errors and waits for a valid preview before apply", () => {
