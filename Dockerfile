@@ -10,7 +10,7 @@ RUN pnpm install --frozen-lockfile
 COPY frontend/ ./
 RUN pnpm build
 
-FROM rust:1.88.0-bookworm AS rust-builder
+FROM rust:1.97.1-bookworm AS rust-builder
 
 WORKDIR /workspace
 COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
