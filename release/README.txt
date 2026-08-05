@@ -11,8 +11,9 @@ Before extraction, place the archive and its .sha256 file in an empty directory:
   cd local-it-desk-VERSION
   sha256sum --check SHA256SUMS
 
-Replace VERSION with the downloaded release version. Then read docs/RUNBOOK.md
-and docs/TLS.md completely. Use plain HTTP only for a throwaway evaluation.
+Replace VERSION with the downloaded release version. Begin with QUICKSTART.md,
+then read docs/RUNBOOK.md and docs/TLS.md completely. Use plain HTTP only for
+a throwaway evaluation.
 Configure trusted HTTPS before creating real staff accounts or entering school
 support information.
 
