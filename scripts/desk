@@ -13,6 +13,8 @@ readonly compose_project='local-it-desk'
 readonly health_attempts="${DESK_HEALTH_ATTEMPTS:-60}"
 # Exact appliance configuration file.
 readonly env_file="${repo_root}/.env"
+# Default source image used when install receives no explicit image override.
+readonly default_install_image='local-it-desk:0.2.0'
 # Compose arguments shared by every production command.
 readonly -a compose_args=(
   compose
@@ -256,7 +258,7 @@ command_install() {
   local host='helpdesk.local'
   local app_name='Local IT Desk'
   local support_contact=''
-  local image='local-it-desk:0.1.0'
+  local image="${default_install_image}"
   while (( $# > 0 )); do
     case "$1" in
       --host) [[ $# -ge 2 ]] || fail_usage '--host requires a value'; host="$2"; shift 2 ;;

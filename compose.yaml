@@ -2,7 +2,7 @@ name: local-it-desk
 
 services:
   app:
-    image: "${LOCAL_IT_DESK_IMAGE:-docker.io/ghostframe/local-it-desk:0.1.1}"
+    image: "${LOCAL_IT_DESK_IMAGE:-docker.io/ghostframe/local-it-desk:0.2.0}"
     pull_policy: missing
     user: "10001:10001"
     init: true

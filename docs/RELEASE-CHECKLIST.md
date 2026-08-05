@@ -55,10 +55,10 @@ only install or update a school deployment should follow the
   bash scripts/check-private-terms.sh
   bash scripts/compose-contract.sh
   bash scripts/check-runbook.sh
-  bash scripts/rehearse-release.sh 0.1.0
+  bash scripts/rehearse-release.sh 0.2.0
   ```
 
-- Replace `0.1.0` with the intended version. Never reuse, move, or delete a
+- Replace `0.2.0` with the intended version. Never reuse, move, or delete a
   published version tag.
 - Verify every release commit and tag uses the pinned SSH signing key in
   `release/allowed_signers`.

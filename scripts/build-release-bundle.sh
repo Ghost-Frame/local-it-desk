@@ -106,6 +106,8 @@ readonly release_inputs=(
   docs/STAFF-GUIDE.md
   release/README.txt
   release/allowed_signers
+  scripts/desk
+  scripts/desk.ps1
   scripts/restore-compose.sh
 )
 
@@ -126,7 +128,7 @@ install -d -m 0755 \
 for input_path in "${release_inputs[@]}"; do
   install -m 0644 "${repo_root}/${input_path}" "${bundle_root}/${input_path}"
 done
-chmod 0755 "${bundle_root}/scripts/restore-compose.sh"
+chmod 0755 "${bundle_root}/scripts/desk" "${bundle_root}/scripts/restore-compose.sh"
 
 # Replaces the source-build image with the exact published digest in the operator environment.
 awk -v immutable_image="${image_ref}@${image_digest}" '
@@ -138,6 +140,23 @@ awk -v immutable_image="${image_ref}@${image_digest}" '
   { print }
   END { if (replaced != 1) exit 1 }
 ' "${repo_root}/.env.example" >"${bundle_root}/.env.example"
+
+# Replaces the source-build launcher default with the immutable release image.
+if [[ "$(grep -Fxc -- "readonly default_install_image='${source_environment_image}'" \
+  "${repo_root}/scripts/desk")" -ne 1 ]]; then
+  printf 'Bundle build failed: source launcher image does not match release version.\n' >&2
+  exit 1
+fi
+awk -v immutable_image="${image_ref}@${image_digest}" '
+  /^readonly default_install_image=/ {
+    print "readonly default_install_image=\047" immutable_image "\047"
+    replaced += 1
+    next
+  }
+  { print }
+  END { if (replaced != 1) exit 1 }
+' "${repo_root}/scripts/desk" >"${bundle_root}/scripts/desk"
+chmod 0755 "${bundle_root}/scripts/desk"
 
 # Renders the operator template with the exact release version.
 if ! grep -Fq -- VERSION "${repo_root}/release/README.txt"; then

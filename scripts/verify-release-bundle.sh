@@ -97,6 +97,8 @@ readonly required_files=(
   release/provenance.json
   release/release-metadata.json
   release/sbom.spdx.json
+  scripts/desk
+  scripts/desk.ps1
   scripts/restore-compose.sh
 )
 # Sorted actual regular-file paths beneath the archive root.
@@ -145,6 +147,13 @@ if grep -En '^LOCAL_IT_DESK_IMAGE=.*:(latest|[0-9]+\.[0-9]+\.[0-9]+)$' \
   "${bundle_root}/.env.example"; then
   fail 'environment template contains a mutable production image reference'
 fi
+[[ "$(grep -Fxc -- "readonly default_install_image='${immutable_image}'" \
+  "${bundle_root}/scripts/desk")" -eq 1 ]] \
+  || fail 'launcher does not contain the metadata image digest exactly once'
+if grep -En "^readonly default_install_image='.*:(latest|[0-9]+\.[0-9]+\.[0-9]+)'$" \
+  "${bundle_root}/scripts/desk"; then
+  fail 'launcher contains a mutable production image reference'
+fi
 
 # Every relative Markdown link in the operator documentation must resolve inside the bundle.
 while IFS= read -r -d '' documentation_path; do
@@ -175,7 +184,9 @@ if grep -Ern 'VERSION|CHANGE_ME|REPLACE_ME|YOUR_' \
   "${bundle_root}/compose.https.yaml" \
   "${bundle_root}/deploy" \
   "${bundle_root}/docs" \
-  "${bundle_root}/release/README.txt"; then
+  "${bundle_root}/release/README.txt" \
+  "${bundle_root}/scripts/desk" \
+  "${bundle_root}/scripts/desk.ps1"; then
   fail 'archive contains an unresolved release placeholder'
 fi
 if find "${bundle_root}" -type f \

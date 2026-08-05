@@ -5,6 +5,35 @@ All notable changes to Local IT Desk are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project uses [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-08-04
+
+### Added
+
+- A one-command HTTPS installer, status and maintenance launcher, Windows WSL
+  wrapper, and five-part Quick Start for a school-owned host.
+- Guided first-run setup for the administrator account, desk identity, named
+  staff roster, and printable one-time login cards.
+- A simplified staff interface and focused administrator workflows for the
+  shared ticket queue, accounts, settings, announcements, and audit history.
+- A printable staff guide and expanded operator runbook covering daily use,
+  support bundles, certificate distribution, updates, backups, restoration,
+  rollback, and recovery.
+
+### Changed
+
+- The normal school deployment uses trusted local HTTPS while plain HTTP is
+  restricted to throwaway evaluation data.
+- Release containers and Compose networks now isolate the application from
+  published ingress while allowing the HTTPS proxy to bind the host port on
+  both Docker and Podman.
+- Authentication, password changes, attachments, browser headers, login
+  throttling, CI, dependency policy, and container release checks are hardened.
+
+### Fixed
+
+- The operator archive now includes the one-command launchers referenced by
+  the Quick Start and pins their default image to the immutable release digest.
+
 ## [0.1.1] - 2026-08-01
 
 ### Fixed

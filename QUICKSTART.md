@@ -38,9 +38,10 @@ On Windows PowerShell, run the equivalent wrapper:
 .\scripts\desk.ps1 install --host helpdesk.local --name "School IT Desk" --support "Call the main office"
 ```
 
-The installer builds the reviewed source image when needed, starts the app,
-waits for both containers to become healthy, and exports the public trust
-certificate to `exports/local-it-desk-root.crt`.
+The installer uses the configured image, starts the app, waits for both
+containers to become healthy, and exports the public trust certificate to
+`exports/local-it-desk-root.crt`. A published release downloads its immutable
+image when needed. A source checkout builds its reviewed local image.
 
 If `.env` already exists, installation stops without replacing it. Use
 `./scripts/desk start` for an existing installation.

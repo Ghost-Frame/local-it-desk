@@ -21,9 +21,9 @@ readonly base_url="http://127.0.0.1:${smoke_http_port}"
 evidence_dir="$(mktemp -d "${TMPDIR:-/tmp}/local-it-desk-smoke.XXXXXX")"
 readonly evidence_dir
 # Initial image reference used before the update exercise.
-readonly old_image="${prebuilt_image:-local-it-desk-smoke:0.1.0-${compose_project}}"
+readonly old_image="${prebuilt_image:-local-it-desk-smoke:0.1.1-${compose_project}}"
 # Replacement image reference used during the update exercise.
-readonly new_image="local-it-desk-smoke:0.1.1-${compose_project}"
+readonly new_image="local-it-desk-smoke:0.2.0-${compose_project}"
 # Fixed verified archive name stored inside only this project state volume.
 readonly backup_filename='local-it-desk-smoke-backup.tar.gz'
 # Compose command constrained to this unique project and evaluation profile.
