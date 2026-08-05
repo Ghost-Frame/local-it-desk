@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24.18.1-bookworm-slim AS frontend-builder
+FROM node:26.5.1-bookworm-slim AS frontend-builder
 
 ARG PNPM_VERSION=11.18.0
 WORKDIR /workspace/frontend
