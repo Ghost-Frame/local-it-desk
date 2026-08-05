@@ -184,13 +184,17 @@ Use the sanitized support procedure in section 13.
 ## 7. Pinned update and pre-update backup
 
 Never update by using a floating image tag. Copy a current verified backup off
-host, then give the launcher the approved semantic-version tag or image digest.
+host, then give the launcher the approved immutable SHA-256 digest.
 It creates another verified backup, preserves the current environment, checks
 the new image, and restores the prior image setting if health fails.
 
 ~~~sh runbook-check
-read -r -p 'Approved versioned image reference: ' next_image
+read -r -p 'Approved digest-pinned image reference: ' next_image
 test -n "$next_image"
+if [[ ! "$next_image" =~ @sha256:[0-9a-f]{64}$ ]]; then
+  printf 'The image reference must end in an immutable SHA-256 digest.\n' >&2
+  exit 1
+fi
 ./scripts/desk update "$next_image"
 ./scripts/desk status
 ~~~
