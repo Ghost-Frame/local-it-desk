@@ -171,7 +171,11 @@ fn digest_file(path: &Path) -> String {
         }
         hasher.update(&buffer[..bytes]);
     }
-    format!("{:x}", hasher.finalize())
+    hasher
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 /// Rewrites the bundle's internal checksum manifest after a focused mutation.
