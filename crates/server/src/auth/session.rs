@@ -188,7 +188,10 @@ pub fn clear_session_cookie(secure: bool) -> String {
 
 /// Returns the stable lowercase SHA-256 representation stored for a secret.
 pub fn hash_secret(secret: &str) -> String {
-    format!("{:x}", Sha256::digest(secret.as_bytes()))
+    Sha256::digest(secret.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 /// Derives the stable per-session CSRF secret from the unreadable cookie token.
@@ -196,7 +199,11 @@ pub fn csrf_for_session_token(session_token: &str) -> String {
     let mut digest = Sha256::new();
     digest.update(b"local-it-desk-csrf-v1\0");
     digest.update(session_token.as_bytes());
-    format!("{:x}", digest.finalize())
+    digest
+        .finalize()
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
 }
 
 /// Compares a submitted CSRF token with one stored hash in constant time.
@@ -289,7 +296,10 @@ mod tests {
     #[test]
     fn token_hash_differs_from_raw_token() {
         let token = generate_secret();
-        assert_ne!(token, hash_secret(&token));
+        let hash = hash_secret(&token);
+        assert_ne!(token, hash);
+        assert_eq!(hash.len(), 64);
+        assert!(hash.bytes().all(|byte| byte.is_ascii_hexdigit()));
         assert_ne!(generate_secret(), token);
     }
 }

@@ -286,7 +286,11 @@ async fn receive_multipart(
                     media_type: media_type.to_string(),
                     extension: extension.to_string(),
                     size_bytes,
-                    sha256: format!("{:x}", hasher.finalize()),
+                    sha256: hasher
+                        .finalize()
+                        .iter()
+                        .map(|byte| format!("{byte:02x}"))
+                        .collect(),
                 });
             }
             _ => {
