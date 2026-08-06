@@ -52,6 +52,9 @@ updates:
       container-minor-and-patch:
         patterns: ["*"]
         update-types: [minor, patch]
+    ignore:
+      # rust-toolchain.toml owns the compiler version used by every build.
+      - dependency-name: rust
 
   - package-ecosystem: github-actions
     directory: /

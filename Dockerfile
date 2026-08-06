@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:24.18.1-bookworm-slim AS frontend-builder
+FROM node:26.5.1-bookworm-slim AS frontend-builder
 
 ARG PNPM_VERSION=11.18.0
 WORKDIR /workspace/frontend
@@ -32,7 +32,7 @@ RUN CGO_ENABLED=0 go build \
     -o /usr/local/bin/caddy \
     .
 
-FROM debian:12.15-slim AS runtime
+FROM debian:13.6-slim AS runtime
 
 LABEL org.opencontainers.image.title="Local IT Desk" \
       org.opencontainers.image.description="Local-network help desk for named staff accounts" \
