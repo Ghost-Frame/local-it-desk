@@ -24,6 +24,21 @@ The normal Linux or WSL installation command is:
 ./scripts/desk install --host helpdesk.local --name 'School IT Desk' --support 'Call the main office'
 ~~~
 
+## Docker Hub image
+
+The [Docker Hub repository](https://hub.docker.com/r/ghostframe/local-it-desk)
+publishes versioned images for Linux AMD64 and ARM64 hosts. Pull version 0.2.1
+with:
+
+```sh
+docker pull ghostframe/local-it-desk:0.2.1
+```
+
+The image pull caches the container image on the host. A school installation
+also needs persistent storage, configuration, and trusted HTTPS. Download the
+matching GitHub release bundle below; its Compose file pins the image by
+immutable digest.
+
 ## Optional evaluation
 
 Plain HTTP is for evaluation with throwaway accounts.
