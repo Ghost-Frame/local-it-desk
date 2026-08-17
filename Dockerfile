@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 
-FROM node:26.5.1-bookworm-slim AS frontend-builder
+FROM node:26.7.0-bookworm-slim AS frontend-builder
 
 ARG PNPM_VERSION=11.18.0
 WORKDIR /workspace/frontend
@@ -17,7 +17,7 @@ COPY Cargo.toml Cargo.lock rust-toolchain.toml ./
 COPY crates/ ./crates/
 RUN cargo build --release --locked --bins
 
-FROM golang:1.26.5-alpine3.24 AS caddy-builder
+FROM golang:1.26.6-alpine3.24 AS caddy-builder
 
 WORKDIR /workspace/caddy
 COPY caddy/go.mod caddy/go.sum ./
