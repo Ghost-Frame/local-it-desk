@@ -146,7 +146,10 @@ Report security issues through the process in [SECURITY.md](SECURITY.md).
 
 ## License and provenance
 
-Local IT Desk is licensed under the [Apache License 2.0](LICENSE). Source and
+Local IT Desk is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). Any commercial use,
+including selling, reselling, hosting, bundling, or otherwise earning revenue
+from this software, requires a separate written commercial license. Contact
+support@syntheos.dev. Source and
 asset classifications are documented in [Provenance](docs/PROVENANCE.md), and
 dependency license families are listed in
 [Third-Party Notices](THIRD-PARTY-NOTICES.md).

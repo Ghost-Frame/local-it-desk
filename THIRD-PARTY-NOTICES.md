@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-Local IT Desk is distributed under the Apache License 2.0. The source tree does
+Local IT Desk is distributed under the PolyForm Noncommercial License 1.0.0. The source tree does
 not vendor third-party source code, fonts, images, or browser assets.
 
 The compiled server, HTTPS edge, and browser application include dependencies

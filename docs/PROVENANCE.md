@@ -2,7 +2,7 @@
 
 Local IT Desk uses a fresh public history created for this standalone product.
 The project maintainer confirmed authority to license the project-authored
-material under Apache License 2.0 before public release.
+material. Project-authored material is licensed under the PolyForm Noncommercial License 1.0.0.
 
 ## Classification
 
@@ -12,8 +12,8 @@ material under Apache License 2.0 before public release.
 - Generated dependency metadata: `Cargo.lock` and
   `frontend/pnpm-lock.yaml` are generated dependency-resolution records. They
   identify upstream packages but do not vendor their source.
-- Standard license text: `LICENSE` is the unmodified SPDX copy of the Apache
-  License 2.0.
+- Standard license text: `LICENSE` is the unmodified SPDX copy of the
+  PolyForm Noncommercial License 1.0.0, preceded by the licensor's `Required Notice:` lines.
 - Third-party dependencies: compiled dependencies and container base layers
   retain their upstream licenses. Their reviewed license families are listed
   in `THIRD-PARTY-NOTICES.md`, and release artifacts include an exact software
@@ -28,7 +28,7 @@ release artifact.
 ## Verification
 
 The release-rights gate enumerates every tracked path, rejects unknown path
-classes and non-text assets, verifies the exact Apache license text, and checks
+classes and non-text assets, verifies the exact project license text, and checks
 the complete Rust and frontend dependency license sets. The history, private
 term, forbidden-surface, bundle, and image gates provide separate checks for
 content that is not a licensing concern.

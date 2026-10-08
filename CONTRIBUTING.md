@@ -16,3 +16,7 @@ Discuss scope changes before adding a dependency or route family. Keep browser r
 Run the complete verification block from [README.md](README.md) before opening a pull request. Include the commands you ran and their results in the pull request description.
 
 Do not add automated-author attribution or unrelated formatting changes to a contribution.
+
+## License
+
+By submitting a contribution, you license it under the PolyForm Noncommercial License 1.0.0 and grant the project owner a perpetual, worldwide, irrevocable, royalty-free right to use, modify, sublicense, and relicense your contribution under any terms, including commercial terms.

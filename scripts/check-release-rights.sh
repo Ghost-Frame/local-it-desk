@@ -7,7 +7,7 @@ repo_root="$(git rev-parse --show-toplevel)"
 readonly repo_root
 cd "${repo_root}"
 
-readonly apache_license_sha256="074e6e32c86a4c0ef8b3ed25b721ca23aca83df277cd88106ef7177c354615ff"
+readonly project_license_sha256="4cfaa310f4c3cedc0feff536eae4127f0e53b9c2e40c5f294ebc0691763fbe95"
 
 # Fails when one required public provenance file is absent or empty.
 require_nonempty_file() {
@@ -23,8 +23,8 @@ for required_file in LICENSE NOTICE THIRD-PARTY-NOTICES.md docs/PROVENANCE.md; d
 done
 
 actual_license_sha256="$(sha256sum LICENSE | awk '{print $1}')"
-if [[ "${actual_license_sha256}" != "${apache_license_sha256}" ]]; then
-  printf 'Release rights check failed: LICENSE is not the reviewed Apache-2.0 text.\n' >&2
+if [[ "${actual_license_sha256}" != "${project_license_sha256}" ]]; then
+  printf 'Release rights check failed: LICENSE is not the reviewed PolyForm-Noncommercial-1.0.0 text.\n' >&2
   exit 1
 fi
 
