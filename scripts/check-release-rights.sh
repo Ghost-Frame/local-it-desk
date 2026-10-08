@@ -7,7 +7,7 @@ repo_root="$(git rev-parse --show-toplevel)"
 readonly repo_root
 cd "${repo_root}"
 
-readonly project_license_sha256="4cfaa310f4c3cedc0feff536eae4127f0e53b9c2e40c5f294ebc0691763fbe95"
+readonly project_license_sha256="82a923d9dbf990fbb6b7eedc8168188c089552a988c8e64872bc858b190c654b"
 
 # Fails when one required public provenance file is absent or empty.
 require_nonempty_file() {
